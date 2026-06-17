@@ -113,14 +113,14 @@ async function processQueue() {
   isProcessingQueue = true;
   
   while (messageQueue.length > 0) {
-    const { jid, message, resolve, reject } = messageQueue.shift();
+    const { jid, content, resolve, reject } = messageQueue.shift();
     
     try {
       if (!sock) {
         throw new Error('WhatsApp client not initialized');
       }
       
-      const result = await sock.sendMessage(jid, { text: message });
+      const result = await sock.sendMessage(jid, content);
       resolve({ id: result.key.id, status: 'sent' });
     } catch (error) {
       reject(error);
@@ -153,7 +153,37 @@ export async function sendTextMessage(to, message) {
     
     const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
     
-    messageQueue.push({ jid, message, resolve, reject });
+    messageQueue.push({ jid, content: { text: message }, resolve, reject });
+    processQueue();
+  });
+}
+
+/**
+ * Send image message
+ * @param {string} to - Phone number or JID
+ * @param {Buffer} imageBuffer - Image buffer
+ * @param {object} options - Options { caption, mimetype }
+ * @returns {Promise<object>} Message result
+ */
+export async function sendImageMessage(to, imageBuffer, options = {}) {
+  return new Promise((resolve, reject) => {
+    if (!sock) {
+      return reject(new Error('WhatsApp client not initialized'));
+    }
+    
+    if (!isConnected()) {
+      return reject(new Error('WhatsApp not connected'));
+    }
+    
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    
+    const content = {
+      image: imageBuffer,
+      caption: options.caption || '',
+      mimetype: options.mimetype
+    };
+    
+    messageQueue.push({ jid, content, resolve, reject });
     processQueue();
   });
 }
