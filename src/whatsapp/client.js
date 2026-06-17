@@ -99,3 +99,61 @@ export async function disconnect() {
 export function getSocket() {
   return sock;
 }
+
+// Message queue
+const messageQueue = [];
+let isProcessingQueue = false;
+
+/**
+ * Process message queue with delay
+ */
+async function processQueue() {
+  if (isProcessingQueue || messageQueue.length === 0) return;
+  
+  isProcessingQueue = true;
+  
+  while (messageQueue.length > 0) {
+    const { jid, message, resolve, reject } = messageQueue.shift();
+    
+    try {
+      if (!sock) {
+        throw new Error('WhatsApp client not initialized');
+      }
+      
+      const result = await sock.sendMessage(jid, { text: message });
+      resolve({ id: result.key.id, status: 'sent' });
+    } catch (error) {
+      reject(error);
+    }
+    
+    // Delay between messages
+    if (messageQueue.length > 0) {
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+  }
+  
+  isProcessingQueue = false;
+}
+
+/**
+ * Send text message
+ * @param {string} to - Phone number or JID
+ * @param {string} message - Text message
+ * @returns {Promise<object>} Message result
+ */
+export async function sendTextMessage(to, message) {
+  return new Promise((resolve, reject) => {
+    if (!sock) {
+      return reject(new Error('WhatsApp client not initialized'));
+    }
+    
+    if (!isConnected()) {
+      return reject(new Error('WhatsApp not connected'));
+    }
+    
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    
+    messageQueue.push({ jid, message, resolve, reject });
+    processQueue();
+  });
+}
