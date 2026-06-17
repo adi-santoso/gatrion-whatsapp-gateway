@@ -4,11 +4,13 @@ import { config } from './config/env.js';
 import { initializeClient, disconnect } from './whatsapp/client.js';
 import routes from './api/routes.js';
 import { errorHandler } from './middleware/error.middleware.js';
+import { securityHeaders } from './middleware/security.middleware.js';
 
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(securityHeaders);
+app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);

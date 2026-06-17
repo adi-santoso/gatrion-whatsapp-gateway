@@ -10,7 +10,7 @@ export function errorHandler(err, req, res, next) {
     timestamp: new Date()
   };
 
-  if (config.nodeEnv === 'development') {
+  if (config.nodeEnv !== 'production') {
     response.stack = err.stack;
   }
 
