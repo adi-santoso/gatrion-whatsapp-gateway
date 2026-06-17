@@ -5,6 +5,7 @@ import { initializeClient, disconnect } from './whatsapp/client.js';
 import routes from './api/routes.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { securityHeaders } from './middleware/security.middleware.js';
+import { validateEnvironment } from './utils/validateEnv.js';
 
 const app = express();
 
@@ -37,6 +38,9 @@ let server;
 
 async function start() {
   try {
+    // Validate environment
+    validateEnvironment();
+    
     // Initialize WhatsApp client first
     console.log('Initializing WhatsApp client...');
     await initializeClient();
@@ -69,5 +73,15 @@ async function shutdown(signal) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  shutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+  shutdown('unhandledRejection');
+});
 
 start();

@@ -1,7 +1,12 @@
-export function healthCheck(req, res) {
+export async function healthCheck(req, res) {
   const memoryUsage = process.memoryUsage();
   const used = Math.round(memoryUsage.heapUsed / 1024 / 1024);
   const total = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+  const external = Math.round(memoryUsage.external / 1024 / 1024);
+  const rss = Math.round(memoryUsage.rss / 1024 / 1024);
+
+  const { getClientConnectionState } = await import('../../whatsapp/client.js');
+  const state = getClientConnectionState();
 
   res.json({
     success: true,
@@ -12,8 +17,16 @@ export function healthCheck(req, res) {
       memory: {
         used,
         total,
-        unit: 'MB'
-      }
+        external,
+        rss
+      },
+      whatsapp: {
+        connected: state.state === 'connected',
+        state: state.state
+      },
+      nodeVersion: process.version,
+      platform: process.platform,
+      pid: process.pid
     }
   });
 }
