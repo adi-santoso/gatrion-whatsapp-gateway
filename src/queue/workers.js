@@ -3,12 +3,29 @@ import { getRedisConnection } from '../config/redis.js';
 import { sessionManager } from '../index.js';
 import { JOB_TYPES } from './messageQueue.js';
 import { config } from '../config/env.js';
+import { webhookService } from '../services/webhookService.js';
 
 export function createWorker() {
   const worker = new Worker(
     'whatsapp:messages',
     async (job) => {
-      const { sessionId, to, message, caption } = job.data;
+      const { sessionId } = job.data;
+      
+      // Handle webhook delivery
+      if (job.name === JOB_TYPES.WEBHOOK_DELIVERY) {
+        const { eventType, payload } = job.data;
+        const session = await sessionManager.getSession(sessionId);
+        
+        if (!session) {
+          throw new Error(`Session ${sessionId} not found`);
+        }
+        
+        await webhookService.sendWebhook(session, eventType, payload);
+        return { status: 'webhook_sent' };
+      }
+      
+      // Handle message sending
+      const { to, message, caption } = job.data;
       
       const session = await sessionManager.getSession(sessionId);
       if (!session) {

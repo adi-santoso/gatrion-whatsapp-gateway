@@ -23,6 +23,7 @@ router.get('/sessions/:id', sessionController.getSession);
 router.get('/sessions/:id/qr', sessionController.getSessionQR);
 router.get('/sessions/:id/status', sessionController.getSessionStatus);
 router.patch('/sessions/:id/webhook', sessionController.updateWebhook);
+router.post('/sessions/:id/webhook/test', sessionController.testWebhook);
 router.post('/sessions/:id/logout', sessionController.logoutSession);
 router.delete('/sessions/:id', sessionController.deleteSession);
 

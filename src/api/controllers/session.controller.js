@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { sessionManager } from '../../index.js';
+import { webhookService } from '../../services/webhookService.js';
 
 function generateSessionId() {
   return 'session-' + randomBytes(8).toString('hex');
@@ -181,5 +182,38 @@ export async function deleteSession(req, res) {
     res.json({ success: true });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+}
+
+export async function testWebhook(req, res) {
+  try {
+    const { id } = req.params;
+    
+    const session = await sessionManager.getSession(id);
+    
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+    
+    if (!session.webhookEnabled || !session.webhookUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'Webhook not configured for this session'
+      });
+    }
+    
+    await webhookService.sendWebhook(session, 'webhook.test', {
+      message: 'This is a test webhook from WhatsApp Gateway'
+    });
+    
+    res.json({
+      success: true,
+      message: 'Test webhook sent'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 }

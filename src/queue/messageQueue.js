@@ -21,7 +21,8 @@ export const messageQueue = new Queue('whatsapp:messages', {
 
 export const JOB_TYPES = {
   SEND_TEXT: 'send-text',
-  SEND_IMAGE: 'send-image'
+  SEND_IMAGE: 'send-image',
+  WEBHOOK_DELIVERY: 'webhook-delivery'
 };
 
 export async function addMessageJob(jobType, sessionId, data, options = {}) {
@@ -42,4 +43,24 @@ export async function addMessageJob(jobType, sessionId, data, options = {}) {
 export async function getQueueStats() {
   const counts = await messageQueue.getJobCounts();
   return counts;
+}
+
+export async function addWebhookJob(sessionId, eventType, payload, options = {}) {
+  if (!sessionId) {
+    throw new Error('sessionId is required for webhook jobs');
+  }
+  
+  return messageQueue.add(JOB_TYPES.WEBHOOK_DELIVERY, {
+    sessionId,
+    eventType,
+    payload
+  }, {
+    priority: 10,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000
+    },
+    ...options
+  });
 }

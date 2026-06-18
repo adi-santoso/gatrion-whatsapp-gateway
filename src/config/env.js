@@ -33,5 +33,9 @@ export const config = {
     concurrency: parseInt(process.env.QUEUE_CONCURRENCY) || 5,
     rateLimitMax: parseInt(process.env.QUEUE_RATE_LIMIT_MAX) || 20,
     rateLimitDuration: parseInt(process.env.QUEUE_RATE_LIMIT_DURATION) || 60000
+  },
+  webhook: {
+    timeout: parseInt(process.env.WEBHOOK_TIMEOUT) || 10000,
+    retryAttempts: parseInt(process.env.WEBHOOK_RETRY_ATTEMPTS) || 3
   }
 };

@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import pino from 'pino';
 import path from 'path';
 import SessionDB from '../storage/sessionDb.js';
+import { webhookService } from '../services/webhookService.js';
 
 class SessionManager {
   constructor(config) {
@@ -174,6 +175,28 @@ class SessionManager {
 
       if (connection === 'connecting') {
         session.status = 'connecting';
+      }
+    });
+
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify') return;
+      
+      const session = this.sessions.get(sessionId);
+      if (!session) return;
+      
+      for (const message of messages) {
+        if (message.key.fromMe) continue;
+        
+        if (this.isDuplicate(sessionId, message.key.id)) {
+          console.log(`Duplicate message ${message.key.id} for ${sessionId}, skipping webhook`);
+          continue;
+        }
+        
+        try {
+          await webhookService.sendMessageReceived(session, message);
+        } catch (err) {
+          console.error(`Webhook error for ${sessionId}:`, err);
+        }
       }
     });
 
