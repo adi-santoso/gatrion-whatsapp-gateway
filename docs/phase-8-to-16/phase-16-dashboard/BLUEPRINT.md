@@ -56,49 +56,63 @@
 
 **Build Output:** Static SPA served by Express
 
-### 2.2 Pages & Routes
+### 2.2 Pages & Routes (Multi-Session Aware)
 
 ```
-/                          → Dashboard (overview)
-/sessions                  → Session management
-/sessions/:id/qr           → QR scan page
-/send                      → Send message form
-/send/bulk                 → Bulk send interface
-/templates                 → Template CRUD
-/groups                    → Group management
-/analytics                 → Analytics & reports
-/logs                      → Real-time logs viewer
-/settings                  → Configuration
+/                          → Dashboard (overview - all sessions)
+/sessions                  → Session management (list all)
+/sessions/new              → Create new session
+/sessions/:id              → Session detail page
+/sessions/:id/qr           → QR scan page (WebSocket real-time)
+/send                      → Send message form (select session)
+/send/bulk                 → Bulk send interface (per session)
+/templates                 → Template CRUD (per session)
+/templates/:sessionId      → Templates for specific session
+/groups                    → Group management (per session)
+/groups/:sessionId         → Groups for specific session
+/analytics                 → Analytics & reports (filterable by session)
+/analytics/:sessionId      → Session-specific analytics
+/logs                      → Real-time logs viewer (filterable by session)
+/settings                  → Global configuration
+/settings/:sessionId       → Per-session settings
 ```
 
-### 2.3 Dashboard Page (Overview)
+### 2.3 Dashboard Page (Multi-Session Overview)
 
 **Components:**
-- Connection status cards (per session)
-- Today's metrics (sent, delivered, failed)
-- Quick send form
-- Recent messages list
+- Session switcher dropdown (filter by session or "All Sessions")
+- Connection status cards (per session grid)
+- Today's metrics (aggregated or per-session)
+- Quick send form (with session selector)
+- Recent messages list (with session badges)
 - System health (CPU, memory, uptime)
 
 **Layout:**
 ```
 ┌────────────────────────────────────────┐
-│  Header (Logo, Nav, User)             │
+│  Header (Logo, Nav, Session Dropdown)  │
 ├────────────────────────────────────────┤
+│  Session: [All Sessions ▼]            │
+│                                        │
 │  ┌──────────┐ ┌──────────┐ ┌────────┐│
 │  │ Sent     │ │Delivered │ │ Failed ││
-│  │  450     │ │   445    │ │   5    ││
+│  │  1,250   │ │  1,235   │ │   15   ││ ← Aggregated
 │  └──────────┘ └──────────┘ └────────┘│
 │                                        │
 │  ┌────────────────────────────────┐  │
 │  │  Messages Chart (24h)          │  │
-│  │                                │  │
+│  │  [Multi-line per session]      │  │
 │  └────────────────────────────────┘  │
 │                                        │
-│  ┌────────────────┐ ┌──────────────┐│
-│  │ Active Sessions│ │Recent Messages││
-│  │                │ │              ││
-│  └────────────────┘ └──────────────┘│
+│  Active Sessions (3/5)                │
+│  ┌──────┐ ┌──────┐ ┌──────┐          │
+│  │🟢Sales│ │🟢Sup.│ │🔴Mkt. │          │
+│  │+6281..│ │+6281..│ │offline│          │
+│  └──────┘ └──────┘ └──────┘          │
+│                                        │
+│  Recent Messages                      │
+│  [Sales] Hello... • 2m ago            │
+│  [Support] Issue resolved • 5m ago    │
 └────────────────────────────────────────┘
 ```
 
@@ -122,17 +136,42 @@
 └─────────────────────────────┘
 ```
 
-### 2.5 QR Scan Page
+### 2.5 QR Scan Page (WebSocket Real-time)
 
 **Features:**
-- Large QR code display
-- Auto-refresh (poll every 5s)
-- Connection status live updates
+- Large QR code display (auto-updated via WebSocket)
+- Real-time connection status (no polling!)
 - Success animation when connected
+- Session name display
+
+**WebSocket Integration:**
+```javascript
+// Frontend connects to specific session
+const ws = new WebSocket(`ws://localhost:3000?sessionId=${sessionId}`);
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  switch (data.event) {
+    case 'qr_ready':
+      setQrCode(data.qrCode);
+      setStatus('Scan QR code with your phone');
+      break;
+    case 'session_connected':
+      setStatus(`Connected: ${data.phone}`);
+      showSuccessAnimation();
+      break;
+    case 'session_disconnected':
+      setStatus('Disconnected');
+      break;
+  }
+};
+```
 
 **Layout:**
 ```
 ┌─────────────────────────────┐
+│  Sales Department           │
 │  Scan QR Code               │
 │                             │
 │    ┌─────────────┐          │
@@ -142,7 +181,7 @@
 │    └─────────────┘          │
 │                             │
 │  Status: Waiting for scan   │
-│  ● Polling...               │
+│  🔴 ● Connected via WebSocket│
 └─────────────────────────────┘
 ```
 

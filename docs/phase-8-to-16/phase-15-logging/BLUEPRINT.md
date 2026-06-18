@@ -61,7 +61,7 @@ console.error('Error:', error.message);
 
 ### 2.2 Structured Log Format
 
-**JSON Output:**
+**JSON Output (Per-Session Context):**
 
 ```json
 {
@@ -70,6 +70,8 @@ console.error('Error:', error.message);
   "pid": 12345,
   "hostname": "server-01",
   "reqId": "req-abc123",
+  "sessionId": "session-abc123",   // ← Session context
+  "sessionName": "Sales Department",
   "component": "whatsapp",
   "action": "send-message",
   "messageId": "3EB0ABC...",
@@ -83,21 +85,25 @@ console.error('Error:', error.message);
 
 ```
 [2026-06-18 10:30:00] INFO (whatsapp/12345): Message sent successfully
+    sessionId: "session-abc123"
+    sessionName: "Sales Department"
     component: "whatsapp"
     action: "send-message"
     messageId: "3EB0ABC..."
     duration: 250ms
 ```
 
-### 2.3 Metrics to Collect
+### 2.3 Metrics to Collect (Per-Session Labels)
 
 **Application Metrics:**
-- `whatsapp_messages_total` - Total messages sent (counter)
-- `whatsapp_messages_failed_total` - Failed messages (counter)
-- `whatsapp_message_duration_seconds` - Message send duration (histogram)
-- `whatsapp_sessions_active` - Active sessions (gauge)
-- `whatsapp_queue_size` - Queue size (gauge)
-- `whatsapp_webhook_requests_total` - Webhook requests (counter)
+- `whatsapp_messages_total{sessionId, status}` - Total messages (counter)
+- `whatsapp_messages_failed_total{sessionId, error_type}` - Failed messages (counter)
+- `whatsapp_message_duration_seconds{sessionId}` - Message duration (histogram)
+- `whatsapp_sessions_active{sessionId, status}` - Active sessions (gauge)
+- `whatsapp_queue_size{sessionId}` - Queue size per session (gauge)
+- `whatsapp_webhook_requests_total{sessionId, status_code}` - Webhooks (counter)
+- `whatsapp_session_uptime_seconds{sessionId}` - Session uptime (gauge)
+- `whatsapp_reconnect_total{sessionId}` - Reconnection count (counter)
 
 **System Metrics:**
 - `process_cpu_usage` - CPU usage
@@ -170,10 +176,12 @@ See: [IMPLEMENTATION_STEPS.md](./IMPLEMENTATION_STEPS.md)
 
 ## 4. Code Standards & Patterns
 
-### 4.1 Logger Usage Pattern
+### 4.1 Logger Usage Pattern (Per-Session Child Logger)
 
 ```javascript
-const logger = require('./utils/logger');
+// src/utils/logger.js - Base logger
+const pino = require('pino');
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 // Basic logging
 logger.info('Server started on port 3000');
@@ -183,18 +191,42 @@ logger.error('Failed to connect to database');
 logger.info({
   component: 'whatsapp',
   action: 'send-message',
+  sessionId: 'session-abc123',
   messageId: '3EB0ABC...',
   duration: 250
 }, 'Message sent successfully');
 
-// Child logger (automatic context)
-const reqLogger = logger.child({ reqId: 'req-abc123' });
-reqLogger.info('Processing request');
-// Output includes reqId automatically
+// Per-Session Child Logger (from engine-whatsapp pattern)
+// src/whatsapp/sessionManager.js
+async createSession(name, webhookConfig) {
+  const sessionId = `session-${uuidv4()}`;
+  
+  // Create child logger with session context
+  const sessionLogger = logger.child({ 
+    sessionId,
+    sessionName: name,
+    component: 'whatsapp-session'
+  });
+  
+  const sock = makeWASocket({
+    auth: state,
+    logger: sessionLogger,  // ← Pino child logger for Baileys
+    // All Baileys internal logs will include sessionId automatically
+  });
+  
+  // Usage in session handlers
+  sessionLogger.info({ action: 'qr-generated' }, 'QR code ready');
+  sessionLogger.error({ action: 'connection-failed', error }, 'Connection failed');
+  
+  return sock;
+}
 
-// Error logging
-logger.error({ err: error }, 'Failed to send message');
-// Automatically logs error stack trace
+// Request logger with session context
+const reqLogger = logger.child({ 
+  reqId: 'req-abc123',
+  sessionId: req.body.sessionId 
+});
+reqLogger.info('Processing send message request');
 ```
 
 ### 4.2 Request Logging Middleware
@@ -231,16 +263,64 @@ function loggingMiddleware(req, res, next) {
 }
 ```
 
-### 4.3 Metrics Collection Pattern
+### 4.3 Metrics Collection Pattern (Per-Session Labels)
 
 ```javascript
 const promClient = require('prom-client');
 
-// Counter
+// Counter with sessionId label
 const messagesTotal = new promClient.Counter({
   name: 'whatsapp_messages_total',
   help: 'Total messages sent',
-  labelNames: ['type', 'status', 'session_id']
+  labelNames: ['sessionId', 'type', 'status']  // ← sessionId label
+});
+
+// Histogram with sessionId label
+const messageDuration = new promClient.Histogram({
+  name: 'whatsapp_message_duration_seconds',
+  help: 'Message send duration',
+  labelNames: ['sessionId'],
+  buckets: [0.1, 0.5, 1, 2, 5]
+});
+
+// Gauge with sessionId label
+const sessionsActive = new promClient.Gauge({
+  name: 'whatsapp_sessions_active',
+  help: 'Active WhatsApp sessions',
+  labelNames: ['sessionId', 'status']
+});
+
+// Usage in code
+async function sendMessage(sessionId, to, message) {
+  const startTime = Date.now();
+  
+  try {
+    const result = await session.sock.sendMessage(to, { text: message });
+    
+    // Increment counter with sessionId label
+    messagesTotal.inc({ sessionId, type: 'text', status: 'success' });
+    
+    // Record duration with sessionId label
+    const duration = (Date.now() - startTime) / 1000;
+    messageDuration.observe({ sessionId }, duration);
+    
+    return result;
+  } catch (error) {
+    messagesTotal.inc({ sessionId, type: 'text', status: 'failed' });
+    throw error;
+  }
+}
+
+// Update session gauge on connection state change
+function updateSessionMetric(sessionId, status) {
+  // Reset old status
+  sessionsActive.set({ sessionId, status: 'connected' }, 0);
+  sessionsActive.set({ sessionId, status: 'disconnected' }, 0);
+  
+  // Set new status
+  sessionsActive.set({ sessionId, status }, 1);
+}
+```
 });
 
 // Usage
