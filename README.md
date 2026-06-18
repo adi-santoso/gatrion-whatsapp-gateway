@@ -71,6 +71,10 @@ PORT=3333
 NODE_ENV=development
 CORS_ORIGIN=*
 
+# API Security (REQUIRED in production, min 32 chars)
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+API_KEY=your-secure-random-api-key-here-min-32-chars
+
 # WhatsApp
 WHATSAPP_SESSION_PATH=./sessions
 
@@ -104,6 +108,48 @@ SESSION_DB_PATH=./data/sessions.db
 
 ---
 
+## 🔐 Authentication
+
+All API endpoints require authentication using an API key.
+
+### Headers Required
+```
+x-api-key: your-api-key-from-env-file
+```
+
+### Generate API Key
+```bash
+# Generate secure 64-character API key
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### Security Features
+- ✅ **Timing-safe comparison** - Prevents timing attacks
+- ✅ **Minimum 32 characters** - Enforced in production
+- ✅ **Required in production** - Server won't start without valid key
+- ✅ **All endpoints protected** - No public endpoints except health check
+
+### Example Request
+```bash
+curl -X POST http://localhost:3333/api/sessions \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: ab64fc4ff220b7cf13de38d993cb8f9b748d001a2ccbffc8cabd248912f19579" \
+  -d '{
+    "name": "Sales Department"
+  }'
+```
+
+### Error Response (Unauthorized)
+```json
+{
+  "success": false,
+  "error": "Unauthorized",
+  "message": "API key is required"
+}
+```
+
+---
+
 ## 📡 API Documentation
 
 ### Base URL
@@ -111,12 +157,16 @@ SESSION_DB_PATH=./data/sessions.db
 http://localhost:3333/api
 ```
 
+### Authentication
+All endpoints require `x-api-key` header. See [Authentication](#-authentication) section above.
+
 ### Session Management (8 endpoints)
 
 #### Create Session
 ```bash
 POST /api/sessions
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "name": "Sales Department",
@@ -140,6 +190,7 @@ Response: 201
 #### List Sessions
 ```bash
 GET /api/sessions
+x-api-key: your-api-key-here
 
 Response: 200
 {
@@ -181,10 +232,13 @@ Response: 200
 
 ### Messaging (8 endpoints)
 
+**Note:** All messaging endpoints require `x-api-key` header.
+
 #### Send Text Message
 ```bash
 POST /api/send-text
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
