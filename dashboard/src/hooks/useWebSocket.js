@@ -10,7 +10,8 @@ export function useWebSocket(sessionId) {
     if (!sessionId) return;
 
     const socket = io('http://localhost:3000', {
-      query: { sessionId }
+      query: { sessionId },
+      transports: ['websocket']
     });
 
     socket.on('qr_ready', (data) => {

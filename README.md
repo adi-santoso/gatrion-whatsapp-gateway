@@ -23,6 +23,7 @@ Multi-session WhatsApp Gateway built with Node.js, Baileys, and React. Productio
 - ✅ Graceful shutdown (30s timeout)
 - ✅ Per-session webhook config
 - ✅ Anti-ban bulk sending (randomized delays & order)
+- ✅ Pure WebSocket transport (no polling overhead)
 
 ---
 

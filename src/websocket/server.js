@@ -7,6 +7,7 @@ class WebSocketServer {
         origin: "*",
         methods: ["GET", "POST"]
       },
+      transports: ['websocket'],
       pingTimeout: 60000,
       pingInterval: 25000
     });
