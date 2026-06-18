@@ -125,6 +125,7 @@ src/
 ```javascript
 // Request (multipart/form-data)
 {
+  sessionId: "session-abc123", // ← REQUIRED
   video: File,           // Required: video file
   to: "628123456789",    // Required
   caption: "Video caption" // Optional
@@ -135,6 +136,7 @@ src/
   success: true,
   data: {
     jobId: "job-uuid",
+    sessionId: "session-abc123",
     to: "628123456789@s.whatsapp.net",
     type: "video",
     size: 5242880,
@@ -148,6 +150,7 @@ src/
 ```javascript
 // Request
 {
+  sessionId: "session-abc123", // ← REQUIRED
   audio: File,           // Required
   to: "628123456789",    // Required
   ptt: true              // Optional: true for voice note, false for audio file
@@ -158,6 +161,7 @@ src/
 ```javascript
 // Request
 {
+  sessionId: "session-abc123", // ← REQUIRED
   document: File,        // Required
   to: "628123456789",    // Required
   filename: "report.pdf", // Optional: override filename
@@ -169,6 +173,7 @@ src/
 ```javascript
 // Request (application/json)
 {
+  sessionId: "session-abc123", // ← REQUIRED
   to: "628123456789",
   latitude: -6.2088,     // Required
   longitude: 106.8456,   // Required
@@ -181,6 +186,7 @@ src/
 ```javascript
 // Request (application/json)
 {
+  sessionId: "session-abc123", // ← REQUIRED
   to: "628123456789",
   contact: {
     name: "John Doe",    // Required
@@ -195,6 +201,7 @@ src/
 ```javascript
 // Request (multipart/form-data)
 {
+  sessionId: "session-abc123", // ← REQUIRED
   sticker: File,         // Required: WebP or PNG/JPEG (auto-convert)
   to: "628123456789"     // Required
 }
@@ -316,29 +323,41 @@ END:VCARD`;
 
 ## 5. Integration Points
 
-### 5.1 Queue Integration
+### 5.1 Queue Integration with sessionId
 
-All media sends go through queue (Phase 9):
+All media sends go through queue (Phase 9) with sessionId:
 
 ```javascript
 const job = await addJob(JOB_TYPES.SEND_VIDEO, {
-  to,
+  sessionId: req.body.sessionId,  // ← REQUIRED
+  to: req.body.to,
   buffer: file.buffer,
-  caption,
+  caption: req.body.caption,
   mimeType: file.mimetype,
   size: file.size,
 });
 ```
 
-### 5.2 Webhook Integration
+### 5.2 Session Validation
 
-Update webhook handler (Phase 8) to support rich media in incoming messages.
+All media endpoints require sessionId validation:
 
-### 5.3 Backward Compatibility
+```javascript
+// src/api/controllers/media.controller.js
+import { validateSession } from '../middleware/sessionValidator.js';
 
-- Existing `/api/send-text` and `/api/send-image` unchanged
-- New endpoints additive only
-- No breaking changes
+// Apply to all media endpoints
+router.post('/send-video', validateSession, sendVideoController);
+router.post('/send-audio', validateSession, sendAudioController);
+router.post('/send-document', validateSession, sendDocumentController);
+router.post('/send-location', validateSession, sendLocationController);
+router.post('/send-contact', validateSession, sendContactController);
+router.post('/send-sticker', validateSession, sendStickerController);
+```
+
+### 5.3 Webhook Integration
+
+Incoming rich media forwarded via webhook (Phase 8) with session context.
 
 ---
 
@@ -346,10 +365,33 @@ Update webhook handler (Phase 8) to support rich media in incoming messages.
 
 ### Must Have (P0)
 
-- [ ] Send video endpoint works
-- [ ] Send audio endpoint works (regular + voice note)
-- [ ] Send document endpoint works
+- [ ] All endpoints require `sessionId` (strict validation)
+- [ ] Send video endpoint works (max 50MB)
+- [ ] Send audio endpoint works (regular + voice note, max 16MB)
+- [ ] Send document endpoint works (max 100MB)
 - [ ] Send location endpoint works
+- [ ] Send contact endpoint works (vCard format)
+- [ ] Send sticker endpoint works (WebP auto-conversion)
+- [ ] MIME type validation per media type
+- [ ] File size limits enforced
+- [ ] All jobs include sessionId in queue
+- [ ] Worker routes to correct session
+- [ ] Tests pass with >80% coverage
+
+### Nice to Have (P1)
+
+- [ ] Media compression options
+- [ ] Thumbnail generation for videos
+- [ ] Batch media send
+- [ ] Media URL support (download then send)
+
+### Out of Scope
+
+- Media storage/CDN (in-memory only)
+- Media encryption
+- Media watermarking
+
+---
 - [ ] Send contact endpoint works
 - [ ] Send sticker endpoint works
 - [ ] File validation prevents invalid types

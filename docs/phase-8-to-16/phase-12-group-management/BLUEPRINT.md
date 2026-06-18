@@ -54,14 +54,16 @@
 
 ## 2. Technical Specification
 
-### 2.1 New API Endpoints
+### 2.1 New API Endpoints (Multi-Session)
+
+**All endpoints require `sessionId` parameter (strict validation):**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `GET /api/groups` | GET | List all groups bot is member of |
+| `GET /api/groups` | GET | List all groups session is member of |
 | `GET /api/groups/:id` | GET | Get group details & metadata |
-| `POST /api/groups/:id/send` | POST | Send message to group |
-| `POST /api/groups/create` | POST | Create new group |
+| `POST /api/groups/:id/send` | POST | Send message to group (with sessionId) |
+| `POST /api/groups/create` | POST | Create new group (with sessionId) |
 | `PUT /api/groups/:id` | PUT | Update group (name, description) |
 | `POST /api/groups/:id/participants` | POST | Add participants to group |
 | `DELETE /api/groups/:id/participants` | DELETE | Remove participants from group |
@@ -70,6 +72,20 @@
 | `GET /api/groups/:id/admins` | GET | List group admins |
 | `POST /api/groups/:id/promote` | POST | Promote member to admin |
 | `POST /api/groups/:id/demote` | POST | Demote admin to member |
+
+**Query Parameter or Body:**
+```javascript
+// Option 1: Query parameter
+GET /api/groups?sessionId=session-abc123
+
+// Option 2: Request body
+POST /api/groups/create
+{
+  "sessionId": "session-abc123",
+  "name": "Sales Team",
+  "participants": ["628111222333", "628999888777"]
+}
+```
 
 ### 2.2 Data Models
 
@@ -120,12 +136,13 @@
 
 **List Groups:**
 ```javascript
-// GET /api/groups?sessionId=session-123
+// GET /api/groups?sessionId=session-abc123
 
 // Response
 {
   success: true,
   data: {
+    sessionId: "session-abc123",
     groups: [
       {
         id: "123456789@g.us",
@@ -141,12 +158,13 @@
 
 **Get Group Details:**
 ```javascript
-// GET /api/groups/123456789@g.us?sessionId=session-123
+// GET /api/groups/123456789@g.us?sessionId=session-abc123
 
 // Response
 {
   success: true,
   data: {
+    sessionId: "session-abc123",
     id: "123456789@g.us",
     name: "Sales Team",
     description: "Official sales team group",
@@ -161,7 +179,7 @@
 ```javascript
 // POST /api/groups/123456789@g.us/send
 {
-  sessionId: "session-123",  // Optional
+  sessionId: "session-abc123",  // ← REQUIRED
   message: "Team announcement!",
   mentions: ["628123456789", "628111222333"]  // Optional: mention users
 }
@@ -171,6 +189,7 @@
   success: true,
   data: {
     jobId: "job-uuid",
+    sessionId: "session-abc123",
     groupId: "123456789@g.us",
     status: "queued"
   }
@@ -181,7 +200,7 @@
 ```javascript
 // POST /api/groups/create
 {
-  sessionId: "session-123",
+  sessionId: "session-abc123",  // ← REQUIRED
   name: "New Project Team",
   participants: ["628123456789", "628111222333"]  // Min 1 participant
 }
@@ -190,6 +209,7 @@
 {
   success: true,
   data: {
+    sessionId: "session-abc123",
     groupId: "987654321@g.us",
     name: "New Project Team",
     inviteCode: "xyz123abc",
