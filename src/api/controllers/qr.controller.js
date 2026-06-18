@@ -1,30 +1,37 @@
-export async function getQR(req, res, next) {
+import { sessionManager } from '../../index.js';
+
+export async function getQR(req, res) {
+  const { sessionId } = req.query;
+  
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      error: 'sessionId is required'
+    });
+  }
+  
   try {
-    const { isConnected, getQRCode, getClientConnectionState } = await import('../../whatsapp/client.js');
+    const session = await sessionManager.getSession(sessionId);
     
-    if (isConnected()) {
-      const state = getClientConnectionState();
-      return res.json({
-        success: true,
-        data: {
-          qr: null,
-          status: 'connected',
-          phone: state.phone,
-          message: 'WhatsApp sudah terhubung'
-        }
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
       });
     }
-
-    const qrCode = getQRCode();
+    
+    if (!session.qr) {
+      return res.json({
+        success: true,
+        data: { qr: null, status: session.status }
+      });
+    }
+    
     res.json({
       success: true,
-      data: {
-        qr: qrCode,
-        status: 'qr_required',
-        message: 'Scan QR code dengan WhatsApp'
-      }
+      data: { qr: session.qr, status: session.status }
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, error: error.message });
   }
 }

@@ -1,101 +1,51 @@
-import { isConnected, sendTextMessage, sendImageMessage } from '../../whatsapp/client.js';
-import { formatPhoneNumber } from '../../whatsapp/utils.js';
+import { sessionManager } from '../../index.js';
 
-/**
- * Send text message handler
- */
-export async function sendText(req, res, next) {
+export async function sendText(req, res) {
   try {
-    const { to, message } = req.body;
+    const { sessionId, to, message } = req.body;
     
-    // Check WhatsApp connection
-    if (!isConnected()) {
-      return res.status(503).json({
+    if (!sessionId) {
+      return res.status(400).json({
         success: false,
-        error: 'ServiceUnavailable',
-        message: 'WhatsApp not connected. Please scan QR code first.'
+        error: 'sessionId is required',
+        message: 'Create a session first at POST /api/sessions'
       });
     }
     
-    // Format phone number
-    const formattedTo = formatPhoneNumber(to);
+    const result = await sessionManager.sendTextMessage(sessionId, to, message);
     
-    // Send message
-    const result = await sendTextMessage(formattedTo, message);
-    
-    // Return success response
-    return res.status(200).json({
-      success: true,
-      data: {
-        messageId: result.id,
-        to: formattedTo,
-        status: result.status,
-        timestamp: new Date()
-      }
-    });
-    
+    res.json({ success: true, data: result });
   } catch (error) {
-    next(error);
+    res.status(400).json({ success: false, error: error.message });
   }
 }
 
-/**
- * Send image message handler
- */
-export async function sendImage(req, res, next) {
+export async function sendImage(req, res) {
   try {
-    // Validate file
+    const { sessionId, to, caption } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'sessionId is required',
+        message: 'Create a session first at POST /api/sessions'
+      });
+    }
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        error: 'BadRequest',
-        message: 'No image file uploaded'
+        error: 'No image file uploaded'
       });
     }
     
-    // Validate 'to' field
-    if (!req.body.to) {
-      return res.status(400).json({
-        success: false,
-        error: 'BadRequest',
-        message: 'Missing required field: to'
-      });
-    }
-    
-    // Check WhatsApp connection
-    if (!isConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: 'ServiceUnavailable',
-        message: 'WhatsApp not connected. Please scan QR code first.'
-      });
-    }
-    
-    // Format phone number
-    const formattedTo = formatPhoneNumber(req.body.to);
-    
-    // Send image
-    const result = await sendImageMessage(formattedTo, req.file.buffer, {
-      caption: req.body.caption,
+    const result = await sessionManager.sendImageMessage(sessionId, to, req.file.buffer, {
+      caption,
       mimetype: req.file.mimetype
     });
     
-    // Return success response
-    return res.status(200).json({
-      success: true,
-      data: {
-        messageId: result.id,
-        to: formattedTo,
-        type: 'image',
-        caption: req.body.caption || undefined,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-        status: result.status,
-        timestamp: new Date()
-      }
-    });
-    
+    res.json({ success: true, data: result });
   } catch (error) {
-    next(error);
+    res.status(400).json({ success: false, error: error.message });
   }
 }

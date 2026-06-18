@@ -1,3 +1,5 @@
+import { sessionManager } from '../../index.js';
+
 export async function healthCheck(req, res) {
   const memoryUsage = process.memoryUsage();
   const used = Math.round(memoryUsage.heapUsed / 1024 / 1024);
@@ -31,21 +33,36 @@ export async function healthCheck(req, res) {
   });
 }
 
-export async function getStatus(req, res, next) {
+export async function getStatus(req, res) {
+  const { sessionId } = req.query;
+  
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      error: 'sessionId is required'
+    });
+  }
+  
   try {
-    const { getClientConnectionState } = await import('../../whatsapp/client.js');
-    const state = getClientConnectionState();
-
+    const session = await sessionManager.getSession(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+    
     res.json({
       success: true,
       data: {
-        connected: state.state === 'connected',
-        state: state.state,
-        phone: state.phone || null,
-        timestamp: state.timestamp ? new Date(state.timestamp) : new Date()
+        sessionId: session.id,
+        name: session.name,
+        phone: session.phone,
+        status: session.status
       }
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, error: error.message });
   }
 }

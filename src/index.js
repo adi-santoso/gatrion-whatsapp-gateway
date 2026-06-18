@@ -10,6 +10,8 @@ import { validateEnvironment } from './utils/validateEnv.js';
 import WebSocketServer from './websocket/server.js';
 import SessionManager from './whatsapp/sessionManager.js';
 
+export const sessionManager = new SessionManager({});
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -39,13 +41,10 @@ app.use(errorHandler);
 
 // Initialize and start
 let server;
-let sessionManager;
 
 async function start() {
   try {
     validateEnvironment();
-    
-    sessionManager = new SessionManager({});
     
     await sessionManager.restoreAllSessions();
     
@@ -70,24 +69,49 @@ async function start() {
 async function shutdown(signal) {
   console.log(`\n${signal} received, shutting down gracefully...`);
   
-  if (server) {
-    server.close(() => {
-      console.log('HTTP server closed');
-    });
+  try {
+    if (server) {
+      await new Promise((resolve) => {
+        server.close(() => {
+          console.log('HTTP server closed');
+          resolve();
+        });
+      });
+    }
+    
+    if (sessionManager) {
+      await sessionManager.shutdownAll();
+      console.log('All sessions closed');
+    }
+    
+    await disconnect();
+    console.log('WhatsApp client disconnected');
+    
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
   }
-  
-  if (sessionManager) {
-    await sessionManager.shutdownAll();
-  }
-  
-  await disconnect();
-  console.log('WhatsApp client disconnected');
-  
-  process.exit(0);
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+// Timeout for forced shutdown
+const SHUTDOWN_TIMEOUT = 30000;
+
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT);
+});
+
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT);
+});
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
