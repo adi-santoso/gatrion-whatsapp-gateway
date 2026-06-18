@@ -70,11 +70,21 @@ async function start() {
     sessionManager.setWebSocketServer(wsServer);
     console.log('WebSocket server initialized');
     
-    queueWorker = createWorker();
-    console.log('Queue worker started');
+    // Start queue worker only if Redis is available
+    if (config.redis.enabled) {
+      try {
+        queueWorker = createWorker();
+        console.log('Queue worker started');
+      } catch (err) {
+        console.warn('Queue worker failed to start:', err.message);
+      }
+    } else {
+      console.log('Queue worker disabled (Redis not available)');
+    }
     
     server = httpServer.listen(config.port, () => {
       console.log(`Server running on port ${config.port}`);
+      console.log(`Dashboard: http://localhost:${config.port}/dashboard`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -109,8 +119,10 @@ async function shutdown(signal) {
     await disconnect();
     console.log('WhatsApp client disconnected');
     
-    await closeRedis();
-    console.log('Redis connection closed');
+    if (config.redis.enabled) {
+      await closeRedis();
+      console.log('Redis connection closed');
+    }
     
     process.exit(0);
   } catch (error) {

@@ -1,23 +1,36 @@
 import { Queue } from 'bullmq';
 import { getRedisConnection } from '../config/redis.js';
+import { config } from '../config/env.js';
 
-export const messageQueue = new Queue('whatsapp:messages', {
-  connection: getRedisConnection(),
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000
-    },
-    removeOnComplete: {
-      age: 3600,
-      count: 1000
-    },
-    removeOnFail: {
-      age: 86400
-    }
+let messageQueue = null;
+
+function getQueue() {
+  if (!config.redis.enabled) {
+    throw new Error('Redis queue is disabled. Enable REDIS_ENABLED=true in .env to use queue features.');
   }
-});
+  
+  if (!messageQueue) {
+    messageQueue = new Queue('whatsapp-messages', {
+      connection: getRedisConnection(),
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000
+        },
+        removeOnComplete: {
+          age: 3600,
+          count: 1000
+        },
+        removeOnFail: {
+          age: 86400
+        }
+      }
+    });
+  }
+  
+  return messageQueue;
+}
 
 export const JOB_TYPES = {
   SEND_TEXT: 'send-text',
@@ -33,11 +46,16 @@ export const JOB_TYPES = {
 };
 
 export async function addMessageJob(jobType, sessionId, data, options = {}) {
+  if (!config.redis.enabled) {
+    throw new Error('Queue is disabled. Messages will be sent directly without queue.');
+  }
+  
   if (!sessionId) {
     throw new Error('sessionId is required for all queue jobs');
   }
   
-  return messageQueue.add(jobType, {
+  const queue = getQueue();
+  return queue.add(jobType, {
     sessionId,
     ...data
   }, {
@@ -48,16 +66,27 @@ export async function addMessageJob(jobType, sessionId, data, options = {}) {
 }
 
 export async function getQueueStats() {
-  const counts = await messageQueue.getJobCounts();
+  if (!config.redis.enabled) {
+    return { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 };
+  }
+  
+  const queue = getQueue();
+  const counts = await queue.getJobCounts();
   return counts;
 }
 
 export async function addWebhookJob(sessionId, eventType, payload, options = {}) {
+  if (!config.redis.enabled) {
+    console.warn('Queue disabled, webhook will be sent directly');
+    return null;
+  }
+  
   if (!sessionId) {
     throw new Error('sessionId is required for webhook jobs');
   }
   
-  return messageQueue.add(JOB_TYPES.WEBHOOK_DELIVERY, {
+  const queue = getQueue();
+  return queue.add(JOB_TYPES.WEBHOOK_DELIVERY, {
     sessionId,
     eventType,
     payload

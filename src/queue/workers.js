@@ -9,8 +9,12 @@ import { analyticsService } from '../services/analyticsService.js';
 import { loggerService } from '../services/loggerService.js';
 
 export function createWorker() {
+  if (!config.redis.enabled) {
+    throw new Error('Redis is disabled, worker cannot be created');
+  }
+  
   const worker = new Worker(
-    'whatsapp:messages',
+    'whatsapp-messages',
     async (job) => {
       const { sessionId } = job.data;
       

@@ -1,4 +1,6 @@
 import { addMessageJob, JOB_TYPES } from '../../queue/messageQueue.js';
+import { sessionManager } from '../../index.js';
+import { config } from '../../config/env.js';
 
 export async function sendText(req, res) {
   try {
@@ -8,6 +10,15 @@ export async function sendText(req, res) {
       return res.status(400).json({
         success: false,
         error: 'sessionId is required'
+      });
+    }
+    
+    // If Redis disabled, send directly
+    if (!config.redis.enabled) {
+      const result = await sessionManager.sendTextMessage(sessionId, to, message);
+      return res.json({
+        success: true,
+        data: result
       });
     }
     
@@ -46,6 +57,18 @@ export async function sendImage(req, res) {
       return res.status(400).json({
         success: false,
         error: 'No image file uploaded'
+      });
+    }
+    
+    // If Redis disabled, send directly
+    if (!config.redis.enabled) {
+      const result = await sessionManager.sendImageMessage(sessionId, to, req.file.buffer, {
+        caption,
+        mimetype: req.file.mimetype
+      });
+      return res.json({
+        success: true,
+        data: result
       });
     }
     

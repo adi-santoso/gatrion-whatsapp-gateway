@@ -1,4 +1,5 @@
-import { getQueueStats, messageQueue } from '../../queue/messageQueue.js';
+import { getQueueStats } from '../../queue/messageQueue.js';
+import { config } from '../../config/env.js';
 
 export async function getStats(req, res) {
   try {
@@ -11,29 +12,18 @@ export async function getStats(req, res) {
 
 export async function getJob(req, res) {
   try {
-    const { jobId } = req.params;
-    const job = await messageQueue.getJob(jobId);
-    
-    if (!job) {
-      return res.status(404).json({
+    if (!config.redis.enabled) {
+      return res.status(400).json({
         success: false,
-        error: 'Job not found'
+        error: 'Queue is disabled. Enable Redis to use job tracking.'
       });
     }
     
-    const state = await job.getState();
+    const { jobId } = req.params;
     
     res.json({
-      success: true,
-      data: {
-        id: job.id,
-        name: job.name,
-        sessionId: job.data.sessionId,
-        state,
-        progress: job.progress,
-        returnvalue: job.returnvalue,
-        failedReason: job.failedReason
-      }
+      success: false,
+      error: 'Job tracking requires Redis queue to be enabled'
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
