@@ -21,5 +21,17 @@ export const config = {
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info'
+  },
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT) || 6379,
+    password: process.env.REDIS_PASSWORD || '',
+    db: parseInt(process.env.REDIS_DB) || 0,
+    enabled: process.env.REDIS_ENABLED === 'true'
+  },
+  queue: {
+    concurrency: parseInt(process.env.QUEUE_CONCURRENCY) || 5,
+    rateLimitMax: parseInt(process.env.QUEUE_RATE_LIMIT_MAX) || 20,
+    rateLimitDuration: parseInt(process.env.QUEUE_RATE_LIMIT_DURATION) || 60000
   }
 };

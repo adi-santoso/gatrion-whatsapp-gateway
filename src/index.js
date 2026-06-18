@@ -9,6 +9,8 @@ import { securityHeaders } from './middleware/security.middleware.js';
 import { validateEnvironment } from './utils/validateEnv.js';
 import WebSocketServer from './websocket/server.js';
 import SessionManager from './whatsapp/sessionManager.js';
+import { createWorker } from './queue/workers.js';
+import { closeRedis } from './config/redis.js';
 
 export const sessionManager = new SessionManager({});
 
@@ -41,6 +43,7 @@ app.use(errorHandler);
 
 // Initialize and start
 let server;
+let queueWorker;
 
 async function start() {
   try {
@@ -55,6 +58,9 @@ async function start() {
     wsServer.initialize();
     sessionManager.setWebSocketServer(wsServer);
     console.log('WebSocket server initialized');
+    
+    queueWorker = createWorker();
+    console.log('Queue worker started');
     
     server = httpServer.listen(config.port, () => {
       console.log(`Server running on port ${config.port}`);
@@ -79,6 +85,11 @@ async function shutdown(signal) {
       });
     }
     
+    if (queueWorker) {
+      await queueWorker.close();
+      console.log('Queue worker closed');
+    }
+    
     if (sessionManager) {
       await sessionManager.shutdownAll();
       console.log('All sessions closed');
@@ -86,6 +97,9 @@ async function shutdown(signal) {
     
     await disconnect();
     console.log('WhatsApp client disconnected');
+    
+    await closeRedis();
+    console.log('Redis connection closed');
     
     process.exit(0);
   } catch (error) {
