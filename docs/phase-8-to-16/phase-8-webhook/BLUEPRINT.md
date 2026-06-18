@@ -57,16 +57,21 @@ src/
 
 ### 2.1 Environment Variables
 
-**Add to `.env.example` and `src/config/env.js`:**
+**NOTE:** Phase 11 introduces per-session webhook configuration stored in database.
+Global webhook config is deprecated in favor of per-session webhook URLs.
+
+**Optional Global Defaults (can be overridden per session):**
 
 ```env
-# Webhook Configuration
-WEBHOOK_URL=https://your-backend.com/webhook/whatsapp
-WEBHOOK_SECRET=your-webhook-secret-key-min-32-chars
+# Webhook Configuration (Global Defaults - Optional)
 WEBHOOK_RETRY_ATTEMPTS=3
 WEBHOOK_TIMEOUT=10000
-WEBHOOK_ENABLED=true
 ```
+
+**Per-Session Webhook Config (stored in SQLite `sessions` table):**
+- `webhook_url` - Per-session webhook URL
+- `webhook_secret` - Per-session webhook secret (min 32 chars)
+- `webhook_enabled` - Enable/disable per session
 
 ### 2.2 New File Structure
 
@@ -91,16 +96,19 @@ src/
 
 ### 2.3 Data Models
 
-**Webhook Payload Schema:**
+**Webhook Payload Schema (Multi-Session):**
 
 ```javascript
 {
   "event": "message.received",
+  "sessionId": "session-abc123",         // ← Session identifier
+  "sessionName": "Sales Department",     // ← Human-readable name
+  "sessionPhone": "628123456789",        // ← WhatsApp number
   "timestamp": "2026-06-18T10:30:00.000Z",
   "messageId": "3EB0ABC123...",
-  "from": "628123456789@s.whatsapp.net",
-  "fromNumber": "628123456789",
-  "fromName": "John Doe",
+  "from": "628999999999@s.whatsapp.net",
+  "fromNumber": "628999999999",
+  "fromName": "Customer Name",
   "isGroup": false,
   "groupId": null,
   "message": {
@@ -130,21 +138,41 @@ src/
 }
 ```
 
-### 2.4 Webhook Signature
+### 2.4 Webhook Signature (Per-Session Secret)
 
 **HMAC SHA256 signature in header:**
 
 ```
 x-webhook-signature: sha256=abc123def456...
+x-session-id: session-abc123
 ```
 
-**Calculation:**
+**Calculation (uses session-specific secret):**
 ```javascript
 const crypto = require('crypto');
+
+// Get session webhook config from database
+const session = await db.getSession(sessionId);
+const webhookSecret = session.webhook_secret;
+
+// Generate signature with session secret
 const signature = crypto
-  .createHmac('sha256', WEBHOOK_SECRET)
+  .createHmac('sha256', webhookSecret)
   .update(JSON.stringify(payload))
   .digest('hex');
+
+// Backend verification (per session)
+const receivedSig = req.headers['x-webhook-signature'].replace('sha256=', '');
+const sessionId = req.headers['x-session-id'];
+const session = await db.getSession(sessionId);
+const expectedSig = crypto
+  .createHmac('sha256', session.webhook_secret)
+  .update(JSON.stringify(req.body))
+  .digest('hex');
+
+if (receivedSig !== expectedSig) {
+  return res.status(401).json({ error: 'Invalid signature' });
+}
 ```
 
 ---
