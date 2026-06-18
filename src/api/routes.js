@@ -6,6 +6,7 @@ import * as sessionController from './controllers/session.controller.js';
 import * as queueController from './controllers/queue.controller.js';
 import * as mediaController from './controllers/media.controller.js';
 import * as groupController from './controllers/group.controller.js';
+import * as templateController from './controllers/template.controller.js';
 import { validateSendText } from '../middleware/validation.middleware.js';
 import { uploadImage, uploadVideo, uploadAudio, uploadDocument, uploadSticker } from '../middleware/upload.middleware.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
@@ -50,5 +51,14 @@ router.post('/groups/:id/demote', groupController.demoteParticipants);
 router.post('/groups/:id/leave', groupController.leaveGroup);
 router.get('/groups/:id/invite', groupController.getInviteCode);
 router.post('/groups/:id/send', groupController.sendToGroup);
+
+router.get('/templates', templateController.listTemplates);
+router.get('/templates/:id', templateController.getTemplate);
+router.post('/templates', templateController.createTemplate);
+router.put('/templates/:id', templateController.updateTemplate);
+router.delete('/templates/:id', templateController.deleteTemplate);
+
+router.post('/bulk/send', templateController.bulkSend);
+router.get('/bulk/:jobId/progress', templateController.getBulkProgress);
 
 export default router;

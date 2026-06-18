@@ -4,6 +4,7 @@ import { sessionManager } from '../index.js';
 import { JOB_TYPES } from './messageQueue.js';
 import { config } from '../config/env.js';
 import { webhookService } from '../services/webhookService.js';
+import { bulkService } from '../services/bulkService.js';
 
 export function createWorker() {
   const worker = new Worker(
@@ -36,9 +37,15 @@ export function createWorker() {
         throw new Error(`Session ${sessionId} not connected`);
       }
       
+      let result;
+      
       switch (job.name) {
         case JOB_TYPES.SEND_TEXT:
-          return await sessionManager.sendTextMessage(sessionId, to, message);
+          result = await sessionManager.sendTextMessage(sessionId, to, message);
+          if (job.data.bulkJobId) {
+            bulkService.updateJobProgress(job.data.bulkJobId, true);
+          }
+          return result;
         
         case JOB_TYPES.SEND_IMAGE:
           return await sessionManager.sendImageMessage(sessionId, to, job.data.imageBuffer, {
@@ -109,6 +116,9 @@ export function createWorker() {
   
   worker.on('failed', (job, err) => {
     console.error(`Job ${job.id} failed for session ${job.data.sessionId}:`, err.message);
+    if (job.data.bulkJobId) {
+      bulkService.updateJobProgress(job.data.bulkJobId, false);
+    }
   });
   
   return worker;
