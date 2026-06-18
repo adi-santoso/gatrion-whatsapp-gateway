@@ -1,6 +1,11 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { config } from './config/env.js';
 import { initializeClient, disconnect } from './whatsapp/client.js';
 import routes from './api/routes.js';
@@ -28,6 +33,12 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api', routes);
+
+// Serve dashboard static files
+app.use('/dashboard', express.static(path.join(__dirname, '../dashboard/dist')));
+app.get('/dashboard/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dashboard/dist/index.html'));
+});
 
 // 404 handler
 app.use((req, res) => {
