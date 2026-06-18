@@ -68,17 +68,26 @@
 
 ## 2. Technical Specification
 
-### 2.1 New API Endpoints
+### 2.1 New API Endpoints (Per-Session)
+
+**All endpoints support optional `sessionId` query parameter for per-session filtering:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `GET /api/analytics/overview` | GET | Dashboard overview metrics |
-| `GET /api/analytics/messages` | GET | Message statistics |
-| `GET /api/analytics/sessions` | GET | Session statistics |
-| `GET /api/analytics/templates` | GET | Template usage stats |
-| `GET /api/analytics/failed` | GET | Failed messages list |
-| `GET /api/analytics/export` | GET | Export analytics (CSV/JSON) |
+| `GET /api/analytics/overview` | GET | Dashboard overview (all or per session) |
+| `GET /api/analytics/messages` | GET | Message statistics (filterable by sessionId) |
+| `GET /api/analytics/sessions` | GET | Per-session statistics comparison |
+| `GET /api/analytics/templates` | GET | Template usage stats (per session) |
+| `GET /api/analytics/failed` | GET | Failed messages list (filterable by sessionId) |
+| `GET /api/analytics/export` | GET | Export analytics CSV/JSON (per session) |
 | `GET /api/messages/:id/status` | GET | Get message delivery status |
+
+**Query Examples:**
+```
+GET /api/analytics/overview                         # All sessions
+GET /api/analytics/overview?sessionId=session-abc  # Specific session
+GET /api/analytics/messages?sessionId=session-abc&period=7d
+```
 
 ### 2.2 Data Models
 
@@ -88,7 +97,7 @@
 {
   id: "event-uuid",
   messageId: "3EB0ABC123...",
-  sessionId: "session-123",
+  sessionId: "session-abc123",  // ← REQUIRED
   jobId: "job-uuid",
   to: "628123456789@s.whatsapp.net",
   type: "text",              // text, image, video, etc
@@ -107,10 +116,12 @@
 }
 ```
 
-**Analytics Overview:**
+**Analytics Overview (Per-Session):**
 
 ```javascript
 {
+  sessionId: "session-abc123",  // ← null for all sessions
+  sessionName: "Sales Department",
   today: {
     sent: 450,
     delivered: 445,

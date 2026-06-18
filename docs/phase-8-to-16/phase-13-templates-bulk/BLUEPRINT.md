@@ -64,11 +64,12 @@
 
 ### 2.2 Data Models
 
-**Template:**
+**Template (Per-Session):**
 
 ```javascript
 {
   id: "template-uuid",
+  sessionId: "session-abc123",      // ← Template belongs to session
   name: "welcome_message",
   category: "marketing",           // marketing, notification, transactional
   content: "Hello {{name}}! Welcome to {{company}}. Your account ID is {{account_id}}.",
@@ -85,7 +86,7 @@
 ```javascript
 {
   id: "bulk-job-uuid",
-  sessionId: "session-123",
+  sessionId: "session-abc123",     // ← REQUIRED
   templateId: "template-uuid",
   status: "processing",            // queued, processing, completed, failed, paused
   total: 1000,
@@ -136,7 +137,7 @@
 ```javascript
 // POST /api/bulk/send
 {
-  sessionId: "session-123",       // Optional
+  sessionId: "session-abc123",    // ← REQUIRED
   templateId: "template-abc123",
   recipients: [
     {
@@ -158,7 +159,11 @@
       }
     }
   ],
-  delay: 2000,                    // Delay between messages (ms)
+  delay: {
+    min: 8000,                    // ← Min delay 8s (anti-ban from engine-whatsapp)
+    max: 15000                    // ← Max delay 15s (randomized)
+  },
+  randomizeOrder: true,           // ← Randomize recipient order (anti-ban)
   scheduleAt: null                // Optional: schedule for later
 }
 
@@ -167,6 +172,7 @@
   success: true,
   data: {
     bulkJobId: "bulk-job-xyz789",
+    sessionId: "session-abc123",
     total: 2,
     status: "queued",
     estimatedCompletion: "2026-06-18T10:05:00Z"
@@ -181,8 +187,10 @@
 // Form-data:
 // - csv: File
 // - templateId: "template-abc123"
-// - sessionId: "session-123" (optional)
-// - delay: 2000 (optional)
+// - sessionId: "session-abc123" (REQUIRED)
+// - delayMin: 8000 (default)
+// - delayMax: 15000 (default)
+// - randomizeOrder: true (default)
 
 // CSV Format:
 // to,customer_name,amount,due_date,payment_link
@@ -194,6 +202,7 @@
   success: true,
   data: {
     bulkJobId: "bulk-job-xyz789",
+    sessionId: "session-abc123",
     total: 2,
     status: "queued"
   }
@@ -267,14 +276,16 @@ src/
 ```sql
 CREATE TABLE templates (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
+  session_id TEXT NOT NULL,       -- ← Template belongs to session
+  name TEXT NOT NULL,
   category TEXT DEFAULT 'marketing',
   content TEXT NOT NULL,
   variables TEXT,              -- JSON array
   language TEXT DEFAULT 'id',
   usage_count INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(session_id, name)     -- ← Unique per session
 );
 ```
 
@@ -283,7 +294,7 @@ CREATE TABLE templates (
 ```sql
 CREATE TABLE bulk_jobs (
   id TEXT PRIMARY KEY,
-  session_id TEXT,
+  session_id TEXT NOT NULL,    -- ← REQUIRED
   template_id TEXT,
   status TEXT DEFAULT 'queued',
   total INTEGER DEFAULT 0,
@@ -293,7 +304,7 @@ CREATE TABLE bulk_jobs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   started_at DATETIME,
   completed_at DATETIME,
-  metadata TEXT                -- JSON: failed recipients, etc
+  metadata TEXT                -- JSON: failed recipients, config, etc
 );
 ```
 
@@ -336,13 +347,89 @@ class TemplateEngine {
 }
 ```
 
-### 4.2 Bulk Processing Pattern
+### 4.2 Bulk Processing Pattern (Anti-Ban from engine-whatsapp)
 
 ```javascript
 async function processBulkJob(bulkJobId) {
   const job = await getBulkJob(bulkJobId);
   const template = await getTemplate(job.templateId);
+  const session = sessionManager.getSession(job.sessionId);
   
+  if (!session || session.status !== 'connected') {
+    throw new Error(`Session ${job.sessionId} not available`);
+  }
+  
+  // Randomize order (anti-ban pattern)
+  const recipients = job.randomizeOrder 
+    ? shuffleArray(job.recipients) 
+    : job.recipients;
+  
+  for (const recipient of recipients) {
+    try {
+      // Render template
+      const message = templateEngine.render(template.content, recipient.variables);
+      
+      // Variable delay (8-15 seconds)
+      const delayMin = job.delayMin || 8000;
+      const delayMax = job.delayMax || 15000;
+      const delay = Math.floor(Math.random() * (delayMax - delayMin)) + delayMin;
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Variable typing speed (0.5-3 seconds)
+      const typingDelay = Math.floor(Math.random() * 2500) + 500;
+      await session.sock.sendPresenceUpdate('composing', recipient.to);
+      await new Promise(resolve => setTimeout(resolve, typingDelay));
+      await session.sock.sendPresenceUpdate('paused', recipient.to);
+      
+      // Occasionally skip typing (30% chance - more human-like)
+      if (Math.random() > 0.7) {
+        await session.sock.sendPresenceUpdate('available', recipient.to);
+      }
+      
+      // Send message with retry (3 attempts)
+      await sendWithRetry(session.sock, recipient.to, message);
+      
+      // Update progress
+      await updateBulkJobProgress(bulkJobId, { success: 1 });
+    } catch (error) {
+      await updateBulkJobProgress(bulkJobId, { 
+        failed: 1, 
+        failedRecipient: { to: recipient.to, error: error.message }
+      });
+    }
+  }
+  
+  await completeBulkJob(bulkJobId);
+}
+
+// Retry mechanism (from engine-whatsapp insights)
+async function sendWithRetry(sock, jid, message, retries = 3) {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await sock.sendMessage(jid, { text: message });
+    } catch (error) {
+      lastError = error;
+      if (i < retries - 1) {
+        const backoff = (i + 1) * 2000; // 2s, 4s, 6s
+        await new Promise(resolve => setTimeout(resolve, backoff));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// Array shuffle for random order
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+```
   for (const recipient of job.recipients) {
     try {
       // Render template
