@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket Test Client</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, button { margin: 5px; padding: 8px; }
+    #log { border: 1px solid #ccc; height: 300px; overflow-y: auto; padding: 10px; margin-top: 10px; }
+    #qrcode { margin-top: 10px; }
+    .event { margin: 5px 0; padding: 5px; background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Test Client</h1>
+  
+  <div>
+    <label>Session ID:</label>
+    <input type="text" id="sessionId" value="test-session-123" />
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+  
+  <div id="status">Status: Not connected</div>
+  
+  <div id="qrcode"></div>
+  
+  <div id="log"></div>
+  
+  <script>
+    let socket = null;
+    
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = 'event';
+      entry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    function connect() {
+      const sessionId = document.getElementById('sessionId').value;
+      if (!sessionId) {
+        alert('Please enter a session ID');
+        return;
+      }
+      
+      if (socket) {
+        socket.disconnect();
+      }
+      
+      socket = io('http://localhost:3000', {
+        query: { sessionId: sessionId }
+      });
+      
+      socket.on('connect', () => {
+        document.getElementById('status').textContent = 'Status: Connected';
+        log('Connected to server');
+      });
+      
+      socket.on('disconnect', () => {
+        document.getElementById('status').textContent = 'Status: Disconnected';
+        log('Disconnected from server');
+      });
+      
+      socket.on('qr_ready', (data) => {
+        log('QR Code received for session: ' + data.sessionId);
+        const qrDiv = document.getElementById('qrcode');
+        qrDiv.innerHTML = `<h3>QR Code:</h3><img src="${data.qrCode}" />`;
+      });
+      
+      socket.on('session_connected', (data) => {
+        log('Session connected: ' + data.sessionId + ' - Phone: ' + data.phone);
+        document.getElementById('qrcode').innerHTML = '';
+      });
+      
+      socket.on('session_disconnected', (data) => {
+        log('Session disconnected: ' + data.sessionId);
+      });
+      
+      socket.on('connection_update', (data) => {
+        log('Connection update: ' + data.status + ' for session: ' + data.sessionId);
+      });
+    }
+    
+    function disconnect() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+    }
+  </script>
+</body>
+</html>

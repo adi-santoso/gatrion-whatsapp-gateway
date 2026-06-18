@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import { config } from './config/env.js';
 import { initializeClient, disconnect } from './whatsapp/client.js';
@@ -6,8 +7,11 @@ import routes from './api/routes.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { securityHeaders } from './middleware/security.middleware.js';
 import { validateEnvironment } from './utils/validateEnv.js';
+import WebSocketServer from './websocket/server.js';
+import SessionManager from './whatsapp/sessionManager.js';
 
 const app = express();
+const httpServer = createServer(app);
 
 // Middleware
 app.use(securityHeaders);
@@ -35,18 +39,25 @@ app.use(errorHandler);
 
 // Initialize and start
 let server;
+let sessionManager;
 
 async function start() {
   try {
-    // Validate environment
     validateEnvironment();
     
-    // Initialize WhatsApp client first
+    sessionManager = new SessionManager({});
+    
+    await sessionManager.restoreAllSessions();
+    
     console.log('Initializing WhatsApp client...');
     await initializeClient();
     
-    // Start HTTP server
-    server = app.listen(config.port, () => {
+    const wsServer = new WebSocketServer(httpServer);
+    wsServer.initialize();
+    sessionManager.setWebSocketServer(wsServer);
+    console.log('WebSocket server initialized');
+    
+    server = httpServer.listen(config.port, () => {
       console.log(`Server running on port ${config.port}`);
     });
   } catch (error) {
@@ -63,6 +74,10 @@ async function shutdown(signal) {
     server.close(() => {
       console.log('HTTP server closed');
     });
+  }
+  
+  if (sessionManager) {
+    await sessionManager.shutdownAll();
   }
   
   await disconnect();
