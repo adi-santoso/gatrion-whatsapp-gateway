@@ -4,6 +4,8 @@ import pino from 'pino';
 import path from 'path';
 import SessionDB from '../storage/sessionDb.js';
 import { webhookService } from '../services/webhookService.js';
+import { analyticsService } from '../services/analyticsService.js';
+import { loggerService } from '../services/loggerService.js';
 
 class SessionManager {
   constructor(config) {
@@ -133,6 +135,9 @@ class SessionManager {
         this.db.updateSessionPhone(sessionId, session.phone);
         this.db.updateLastConnected(sessionId);
 
+        analyticsService.initSession(sessionId);
+        loggerService.info(sessionId, 'Session connected', { phone: session.phone });
+
         if (this.wsServer) {
           this.wsServer.emitToSession(sessionId, 'session_connected', {
             sessionId,
@@ -166,6 +171,8 @@ class SessionManager {
         if (shouldReconnect && session.reconnectAttempts < 5) {
           const delay = Math.min(1000 * Math.pow(2, session.reconnectAttempts), 30000);
           session.reconnectAttempts++;
+          analyticsService.trackReconnect(sessionId);
+          loggerService.warn(sessionId, 'Reconnecting', { attempt: session.reconnectAttempts });
           console.log(`Reconnecting ${sessionId} (attempt ${session.reconnectAttempts}) in ${delay}ms...`);
           setTimeout(() => this.reconnectSession(sessionId), delay);
         } else {

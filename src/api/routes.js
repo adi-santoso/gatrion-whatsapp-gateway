@@ -7,6 +7,7 @@ import * as queueController from './controllers/queue.controller.js';
 import * as mediaController from './controllers/media.controller.js';
 import * as groupController from './controllers/group.controller.js';
 import * as templateController from './controllers/template.controller.js';
+import * as analyticsController from './controllers/analytics.controller.js';
 import { validateSendText } from '../middleware/validation.middleware.js';
 import { uploadImage, uploadVideo, uploadAudio, uploadDocument, uploadSticker } from '../middleware/upload.middleware.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
@@ -60,5 +61,9 @@ router.delete('/templates/:id', templateController.deleteTemplate);
 
 router.post('/bulk/send', templateController.bulkSend);
 router.get('/bulk/:jobId/progress', templateController.getBulkProgress);
+
+router.get('/analytics', analyticsController.getSessionAnalytics);
+router.get('/analytics/all', analyticsController.getAllAnalytics);
+router.get('/analytics/aggregate', analyticsController.getAggregateAnalytics);
 
 export default router;

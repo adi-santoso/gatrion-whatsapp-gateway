@@ -5,6 +5,8 @@ import { JOB_TYPES } from './messageQueue.js';
 import { config } from '../config/env.js';
 import { webhookService } from '../services/webhookService.js';
 import { bulkService } from '../services/bulkService.js';
+import { analyticsService } from '../services/analyticsService.js';
+import { loggerService } from '../services/loggerService.js';
 
 export function createWorker() {
   const worker = new Worker(
@@ -45,56 +47,82 @@ export function createWorker() {
           if (job.data.bulkJobId) {
             bulkService.updateJobProgress(job.data.bulkJobId, true);
           }
+          analyticsService.trackMessageSent(sessionId, 'text');
+          loggerService.info(sessionId, 'Message sent', { jobId: job.id, to });
           return result;
         
         case JOB_TYPES.SEND_IMAGE:
-          return await sessionManager.sendImageMessage(sessionId, to, job.data.imageBuffer, {
+          result = await sessionManager.sendImageMessage(sessionId, to, job.data.imageBuffer, {
             caption,
             mimetype: job.data.mimetype
           });
+          analyticsService.trackMessageSent(sessionId, 'image');
+          loggerService.info(sessionId, 'Image sent', { jobId: job.id, to });
+          return result;
         
         case JOB_TYPES.SEND_VIDEO:
-          return await sessionManager.sendVideoMessage(sessionId, to, job.data.videoBuffer, {
+          result = await sessionManager.sendVideoMessage(sessionId, to, job.data.videoBuffer, {
             caption,
             mimetype: job.data.mimetype
           });
+          analyticsService.trackMessageSent(sessionId, 'video');
+          loggerService.info(sessionId, 'Video sent', { jobId: job.id, to });
+          return result;
 
         case JOB_TYPES.SEND_AUDIO:
-          return await sessionManager.sendAudioMessage(sessionId, to, job.data.audioBuffer, {
+          result = await sessionManager.sendAudioMessage(sessionId, to, job.data.audioBuffer, {
             ptt: job.data.ptt,
             mimetype: job.data.mimetype
           });
+          analyticsService.trackMessageSent(sessionId, 'audio');
+          loggerService.info(sessionId, 'Audio sent', { jobId: job.id, to });
+          return result;
 
         case JOB_TYPES.SEND_DOCUMENT:
-          return await sessionManager.sendDocumentMessage(sessionId, to, job.data.documentBuffer, {
+          result = await sessionManager.sendDocumentMessage(sessionId, to, job.data.documentBuffer, {
             filename: job.data.filename,
             caption,
             mimetype: job.data.mimetype
           });
+          analyticsService.trackMessageSent(sessionId, 'document');
+          loggerService.info(sessionId, 'Document sent', { jobId: job.id, to });
+          return result;
 
         case JOB_TYPES.SEND_LOCATION:
-          return await sessionManager.sendLocationMessage(sessionId, to, {
+          result = await sessionManager.sendLocationMessage(sessionId, to, {
             latitude: job.data.latitude,
             longitude: job.data.longitude,
             name: job.data.name,
             address: job.data.address
           });
+          analyticsService.trackMessageSent(sessionId, 'location');
+          loggerService.info(sessionId, 'Location sent', { jobId: job.id, to });
+          return result;
 
         case JOB_TYPES.SEND_CONTACT:
-          return await sessionManager.sendContactMessage(sessionId, to, job.data.contact);
+          result = await sessionManager.sendContactMessage(sessionId, to, job.data.contact);
+          analyticsService.trackMessageSent(sessionId, 'contact');
+          loggerService.info(sessionId, 'Contact sent', { jobId: job.id, to });
+          return result;
 
         case JOB_TYPES.SEND_STICKER:
-          return await sessionManager.sendStickerMessage(sessionId, to, job.data.stickerBuffer, {
+          result = await sessionManager.sendStickerMessage(sessionId, to, job.data.stickerBuffer, {
             mimetype: job.data.mimetype
           });
+          analyticsService.trackMessageSent(sessionId, 'sticker');
+          loggerService.info(sessionId, 'Sticker sent', { jobId: job.id, to });
+          return result;
 
         case JOB_TYPES.SEND_GROUP_MESSAGE:
-          return await sessionManager.sendGroupMessage(
+          result = await sessionManager.sendGroupMessage(
             sessionId, 
             job.data.groupId, 
             job.data.message,
             { mentions: job.data.mentions }
           );
+          analyticsService.trackMessageSent(sessionId, 'group');
+          loggerService.info(sessionId, 'Group message sent', { jobId: job.id, groupId: job.data.groupId });
+          return result;
         
         default:
           throw new Error(`Unknown job type: ${job.name}`);
@@ -119,6 +147,8 @@ export function createWorker() {
     if (job.data.bulkJobId) {
       bulkService.updateJobProgress(job.data.bulkJobId, false);
     }
+    analyticsService.trackMessageFailed(job.data.sessionId);
+    loggerService.error(job.data.sessionId, 'Message failed', { jobId: job.id, error: err.message });
   });
   
   return worker;

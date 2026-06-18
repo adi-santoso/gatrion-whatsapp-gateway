@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import { addWebhookJob } from '../queue/messageQueue.js';
+import { analyticsService } from './analyticsService.js';
+import { loggerService } from './loggerService.js';
 
 export class WebhookService {
   constructor() {
@@ -62,6 +64,9 @@ export class WebhookService {
       groupId: message.key.remoteJid.includes('@g.us') ? message.key.remoteJid : null,
       message: this.parseMessage(message)
     };
+    
+    analyticsService.trackMessageReceived(session.id);
+    loggerService.info(session.id, 'Message received', { from: data.fromNumber });
     
     if (this.useQueue) {
       await addWebhookJob(session.id, 'message.received', data);
