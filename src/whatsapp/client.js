@@ -12,12 +12,14 @@ let authState = null;
  * @returns {Promise<object>} Socket instance
  */
 export async function initializeClient() {
-  if (sock) {
-    console.log('Client already initialized');
-    return sock;
-  }
-  
   try {
+    // Reset existing connection if any
+    if (sock) {
+      console.log('Resetting existing client...');
+      sock = null;
+      authState = null;
+    }
+    
     // Load auth state
     const { state, saveCreds } = await useMultiFileAuthState(config.whatsapp.sessionPath);
     authState = state;
@@ -33,8 +35,12 @@ export async function initializeClient() {
       logger: pino({ level: config.logging.level })
     });
     
-    // Setup event handlers
-    setupConnectionHandlers(sock, saveCreds);
+    // Setup event handlers with reconnect callback
+    setupConnectionHandlers(sock, saveCreds, () => {
+      initializeClient().catch(err => {
+        console.error('Auto-reconnect failed:', err);
+      });
+    });
     
     console.log('WhatsApp client initialized');
     return sock;

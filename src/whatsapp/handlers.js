@@ -33,8 +33,9 @@ function updateConnectionState(updates) {
  * Setup connection event handlers
  * @param {object} sock - Baileys socket instance
  * @param {function} saveCreds - Save credentials function
+ * @param {function} reconnectCallback - Callback to reinitialize client
  */
-export function setupConnectionHandlers(sock, saveCreds) {
+export function setupConnectionHandlers(sock, saveCreds, reconnectCallback) {
   // Handle connection updates
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -79,8 +80,12 @@ export function setupConnectionHandlers(sock, saveCreds) {
       });
       
       if (shouldReconnect) {
-        console.log('Reconnecting...');
-        // Caller should handle reconnection
+        console.log('Reconnecting in 3 seconds...');
+        setTimeout(() => {
+          if (reconnectCallback) {
+            reconnectCallback();
+          }
+        }, 3000);
       }
     }
     
