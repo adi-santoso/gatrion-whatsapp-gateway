@@ -46,6 +46,41 @@ export function createWorker() {
             mimetype: job.data.mimetype
           });
         
+        case JOB_TYPES.SEND_VIDEO:
+          return await sessionManager.sendVideoMessage(sessionId, to, job.data.videoBuffer, {
+            caption,
+            mimetype: job.data.mimetype
+          });
+
+        case JOB_TYPES.SEND_AUDIO:
+          return await sessionManager.sendAudioMessage(sessionId, to, job.data.audioBuffer, {
+            ptt: job.data.ptt,
+            mimetype: job.data.mimetype
+          });
+
+        case JOB_TYPES.SEND_DOCUMENT:
+          return await sessionManager.sendDocumentMessage(sessionId, to, job.data.documentBuffer, {
+            filename: job.data.filename,
+            caption,
+            mimetype: job.data.mimetype
+          });
+
+        case JOB_TYPES.SEND_LOCATION:
+          return await sessionManager.sendLocationMessage(sessionId, to, {
+            latitude: job.data.latitude,
+            longitude: job.data.longitude,
+            name: job.data.name,
+            address: job.data.address
+          });
+
+        case JOB_TYPES.SEND_CONTACT:
+          return await sessionManager.sendContactMessage(sessionId, to, job.data.contact);
+
+        case JOB_TYPES.SEND_STICKER:
+          return await sessionManager.sendStickerMessage(sessionId, to, job.data.stickerBuffer, {
+            mimetype: job.data.mimetype
+          });
+        
         default:
           throw new Error(`Unknown job type: ${job.name}`);
       }

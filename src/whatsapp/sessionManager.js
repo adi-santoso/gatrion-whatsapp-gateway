@@ -381,6 +381,102 @@ class SessionManager {
     return { id: result.key.id, status: 'sent' };
   }
 
+  async sendVideoMessage(sessionId, to, videoBuffer, options = {}) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    const result = await session.sock.sendMessage(jid, {
+      video: videoBuffer,
+      caption: options.caption || '',
+      mimetype: options.mimetype
+    });
+    return { id: result.key.id, status: 'sent' };
+  }
+
+  async sendAudioMessage(sessionId, to, audioBuffer, options = {}) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    const result = await session.sock.sendMessage(jid, {
+      audio: audioBuffer,
+      mimetype: options.mimetype,
+      ptt: options.ptt || false
+    });
+    return { id: result.key.id, status: 'sent' };
+  }
+
+  async sendDocumentMessage(sessionId, to, documentBuffer, options = {}) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    const result = await session.sock.sendMessage(jid, {
+      document: documentBuffer,
+      mimetype: options.mimetype,
+      fileName: options.filename || 'document',
+      caption: options.caption || ''
+    });
+    return { id: result.key.id, status: 'sent' };
+  }
+
+  async sendLocationMessage(sessionId, to, location) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    const result = await session.sock.sendMessage(jid, {
+      location: {
+        degreesLatitude: location.latitude,
+        degreesLongitude: location.longitude,
+        name: location.name || '',
+        address: location.address || ''
+      }
+    });
+    return { id: result.key.id, status: 'sent' };
+  }
+
+  async sendContactMessage(sessionId, to, contact) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    const vcard = `BEGIN:VCARD
+VERSION:3.0
+FN:${contact.name}
+TEL;type=CELL;type=VOICE;waid=${contact.phone}:+${contact.phone}
+${contact.organization ? `ORG:${contact.organization}` : ''}
+${contact.email ? `EMAIL:${contact.email}` : ''}
+END:VCARD`;
+
+    const result = await session.sock.sendMessage(jid, {
+      contacts: {
+        displayName: contact.name,
+        contacts: [{ vcard }]
+      }
+    });
+    return { id: result.key.id, status: 'sent' };
+  }
+
+  async sendStickerMessage(sessionId, to, stickerBuffer, options = {}) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+    const result = await session.sock.sendMessage(jid, {
+      sticker: stickerBuffer,
+      mimetype: 'image/webp'
+    });
+    return { id: result.key.id, status: 'sent' };
+  }
+
   async shutdownAll() {
     console.log('Shutting down all sessions...');
     const promises = [];

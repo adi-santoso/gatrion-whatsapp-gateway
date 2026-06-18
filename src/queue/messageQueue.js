@@ -22,6 +22,12 @@ export const messageQueue = new Queue('whatsapp:messages', {
 export const JOB_TYPES = {
   SEND_TEXT: 'send-text',
   SEND_IMAGE: 'send-image',
+  SEND_VIDEO: 'send-video',
+  SEND_AUDIO: 'send-audio',
+  SEND_DOCUMENT: 'send-document',
+  SEND_LOCATION: 'send-location',
+  SEND_CONTACT: 'send-contact',
+  SEND_STICKER: 'send-sticker',
   WEBHOOK_DELIVERY: 'webhook-delivery'
 };
 
