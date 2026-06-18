@@ -28,6 +28,7 @@ export const JOB_TYPES = {
   SEND_LOCATION: 'send-location',
   SEND_CONTACT: 'send-contact',
   SEND_STICKER: 'send-sticker',
+  SEND_GROUP_MESSAGE: 'send-group-message',
   WEBHOOK_DELIVERY: 'webhook-delivery'
 };
 

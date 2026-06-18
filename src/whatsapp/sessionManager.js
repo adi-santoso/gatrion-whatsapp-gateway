@@ -518,6 +518,170 @@ END:VCARD`;
       }
     }, 600000);
   }
+
+  async getGroups(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const groups = await session.sock.groupFetchAllParticipating();
+    return Object.values(groups).map(group => ({
+      id: group.id,
+      name: group.subject,
+      participantCount: group.participants.length,
+      owner: group.owner,
+      creation: group.creation
+    }));
+  }
+
+  async getGroupMetadata(sessionId, groupId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const metadata = await session.sock.groupMetadata(groupId);
+    return {
+      id: metadata.id,
+      name: metadata.subject,
+      description: metadata.desc,
+      owner: metadata.owner,
+      creation: metadata.creation,
+      participants: metadata.participants.map(p => ({
+        id: p.id,
+        admin: p.admin,
+        isAdmin: p.admin !== null,
+        isSuperAdmin: p.admin === 'superadmin'
+      })),
+      size: metadata.size,
+      announce: metadata.announce,
+      restrict: metadata.restrict
+    };
+  }
+
+  async createGroup(sessionId, name, participants) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const participantJids = participants.map(p => 
+      p.includes('@s.whatsapp.net') ? p : `${p}@s.whatsapp.net`
+    );
+    
+    const result = await session.sock.groupCreate(name, participantJids);
+    return {
+      id: result.id,
+      name: name,
+      participants: participantJids
+    };
+  }
+
+  async updateGroupSubject(sessionId, groupId, subject) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    await session.sock.groupUpdateSubject(groupId, subject);
+    return { success: true };
+  }
+
+  async updateGroupDescription(sessionId, groupId, description) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    await session.sock.groupUpdateDescription(groupId, description);
+    return { success: true };
+  }
+
+  async addGroupParticipants(sessionId, groupId, participants) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const participantJids = participants.map(p => 
+      p.includes('@s.whatsapp.net') ? p : `${p}@s.whatsapp.net`
+    );
+    
+    const result = await session.sock.groupParticipantsUpdate(groupId, participantJids, 'add');
+    return result;
+  }
+
+  async removeGroupParticipants(sessionId, groupId, participants) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const participantJids = participants.map(p => 
+      p.includes('@s.whatsapp.net') ? p : `${p}@s.whatsapp.net`
+    );
+    
+    const result = await session.sock.groupParticipantsUpdate(groupId, participantJids, 'remove');
+    return result;
+  }
+
+  async promoteGroupParticipants(sessionId, groupId, participants) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const participantJids = participants.map(p => 
+      p.includes('@s.whatsapp.net') ? p : `${p}@s.whatsapp.net`
+    );
+    
+    const result = await session.sock.groupParticipantsUpdate(groupId, participantJids, 'promote');
+    return result;
+  }
+
+  async demoteGroupParticipants(sessionId, groupId, participants) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const participantJids = participants.map(p => 
+      p.includes('@s.whatsapp.net') ? p : `${p}@s.whatsapp.net`
+    );
+    
+    const result = await session.sock.groupParticipantsUpdate(groupId, participantJids, 'demote');
+    return result;
+  }
+
+  async leaveGroup(sessionId, groupId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    await session.sock.groupLeave(groupId);
+    return { success: true };
+  }
+
+  async getGroupInviteCode(sessionId, groupId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const code = await session.sock.groupInviteCode(groupId);
+    return {
+      code,
+      inviteLink: `https://chat.whatsapp.com/${code}`
+    };
+  }
+
+  async sendGroupMessage(sessionId, groupId, message, options = {}) {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (!this.isSessionConnected(sessionId)) throw new Error('Session not connected');
+
+    const content = { text: message };
+    
+    if (options.mentions && options.mentions.length > 0) {
+      content.mentions = options.mentions.map(m => 
+        m.includes('@s.whatsapp.net') ? m : `${m}@s.whatsapp.net`
+      );
+    }
+    
+    const result = await session.sock.sendMessage(groupId, content);
+    return { id: result.key.id, status: 'sent' };
+  }
 }
 
 export default SessionManager;

@@ -80,6 +80,14 @@ export function createWorker() {
           return await sessionManager.sendStickerMessage(sessionId, to, job.data.stickerBuffer, {
             mimetype: job.data.mimetype
           });
+
+        case JOB_TYPES.SEND_GROUP_MESSAGE:
+          return await sessionManager.sendGroupMessage(
+            sessionId, 
+            job.data.groupId, 
+            job.data.message,
+            { mentions: job.data.mentions }
+          );
         
         default:
           throw new Error(`Unknown job type: ${job.name}`);
