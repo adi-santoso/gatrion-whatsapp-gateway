@@ -272,41 +272,121 @@ describe('Webhook Handler', () => {
 
 ## 5. Integration Points
 
-### 5.1 Baileys Event Integration
+### 5.1 Baileys Event Integration (Multi-Session)
 
-**In `src/whatsapp/client.js`:**
+**In `src/whatsapp/sessionManager.js`:**
 
 ```javascript
 const webhookHandler = require('./webhookHandler');
 
-// Add event listener after connection
-sock.ev.on('messages.upsert', async ({ messages, type }) => {
-  if (type !== 'notify') return; // Only process new messages
+// Setup event handlers per session
+setupEventHandlers(sessionId, sock, saveCreds) {
+  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('connection.update', (update) => this.handleConnectionUpdate(sessionId, update));
   
-  for (const message of messages) {
-    // Ignore own messages
-    if (message.key.fromMe) continue;
+  // Incoming messages with sessionId context
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return;
     
+    for (const message of messages) {
+      if (message.key.fromMe) continue;
+      
+      // Get session context
+      const session = this.sessions.get(sessionId);
+      
+      // Send webhook with session info
+      await webhookHandler.send(sessionId, message, {
+        sessionName: session.name,
+        sessionPhone: session.phone,
+        webhookUrl: session.webhookUrl,
+        webhookSecret: session.webhookSecret,
+        webhookEnabled: session.webhookEnabled
+      });
+    }
+  });
+}
+```
     // Process incoming message
     await webhookHandler.handleIncomingMessage(message);
   }
 });
 ```
 
-### 5.2 Backward Compatibility
+### 5.2 Per-Session Webhook Management
 
-- Existing API endpoints unchanged
-- Webhook is **opt-in** via `WEBHOOK_ENABLED=true`
-- If webhook disabled, incoming messages are simply logged (no action)
-- No breaking changes to current functionality
+**Configure webhook per session:**
 
-### 5.3 Configuration Migration
+```javascript
+// Create session with webhook config
+POST /api/sessions
+{
+  "name": "Sales Department",
+  "webhookUrl": "https://backend.com/webhook/sales",
+  "webhookSecret": "sales-secret-key-min-32-chars",
+  "webhookEnabled": true
+}
 
-**For existing deployments:**
+// Update webhook config for existing session
+PATCH /api/sessions/:sessionId/webhook
+{
+  "webhookUrl": "https://new-url.com/webhook",
+  "webhookSecret": "new-secret",
+  "webhookEnabled": true
+}
 
-1. Add new env vars to `.env` (optional)
-2. Restart service
-3. If `WEBHOOK_ENABLED=false` or not set, behaves exactly as before
+// Test webhook
+POST /api/sessions/:sessionId/webhook/test
+// Sends test payload to webhook URL
+```
+
+**Webhook Handler Logic:**
+
+```javascript
+// src/whatsapp/webhookHandler.js
+async function send(sessionId, message, sessionContext) {
+  const { webhookUrl, webhookSecret, webhookEnabled } = sessionContext;
+  
+  // Skip if disabled or no URL
+  if (!webhookEnabled || !webhookUrl) {
+    console.log(`Webhook disabled for session ${sessionId}`);
+    return;
+  }
+  
+  // Build payload
+  const payload = {
+    event: 'message.received',
+    sessionId,
+    sessionName: sessionContext.sessionName,
+    sessionPhone: sessionContext.sessionPhone,
+    timestamp: new Date().toISOString(),
+    messageId: message.key.id,
+    from: message.key.remoteJid,
+    message: extractMessage(message)
+  };
+  
+  // Generate signature with session-specific secret
+  const signature = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+  
+  // Send to session-specific webhook URL
+  try {
+    await axios.post(webhookUrl, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Signature': `sha256=${signature}`,
+        'X-Session-Id': sessionId
+      },
+      timeout: 10000
+    });
+    console.log(`Webhook sent for ${sessionId}`);
+  } catch (error) {
+    console.error(`Webhook failed for ${sessionId}:`, error.message);
+    // Retry logic via Phase 9 queue integration
+  }
+}
+```
 
 ---
 
@@ -314,28 +394,30 @@ sock.ev.on('messages.upsert', async ({ messages, type }) => {
 
 ### Must Have (P0)
 
-- [ ] Incoming text messages forwarded to webhook URL
-- [ ] Incoming image messages forwarded with base64 data
-- [ ] Webhook payload matches schema exactly
-- [ ] HMAC signature generated correctly
-- [ ] Message deduplication works (no duplicate webhooks)
-- [ ] Webhook failures logged but don't crash app
-- [ ] Retry mechanism works (3 attempts with backoff)
-- [ ] Works with `WEBHOOK_ENABLED=false` (no-op)
-- [ ] Existing send endpoints still work (no regression)
+- [ ] Per-session webhook URL configuration via API
+- [ ] Per-session webhook secret (min 32 chars)
+- [ ] Webhook enabled/disabled per session
+- [ ] Incoming messages forwarded to session-specific webhook URL
+- [ ] Webhook payload includes sessionId, sessionName, sessionPhone
+- [ ] HMAC signature using session-specific secret
+- [ ] Message deduplication (no duplicate webhooks)
+- [ ] Webhook failures logged but don't crash session
+- [ ] Retry mechanism (3 attempts via Phase 9 queue)
+- [ ] Test webhook endpoint works
+- [ ] Sessions without webhook config work normally
 - [ ] Tests pass with >80% coverage
 
 ### Nice to Have (P1)
 
-- [ ] Support video/audio/document in webhook
-- [ ] Webhook queue if destination is down
-- [ ] Webhook delivery status tracking
+- [ ] Webhook delivery status tracking per session
+- [ ] Webhook history/logs per session
+- [ ] Webhook rate limiting per session
 
 ### Out of Scope
 
-- Webhook authentication from receiver (they verify signature)
+- Global webhook URL (deprecated in favor of per-session)
 - Webhook UI dashboard (Phase 16)
-- Webhook retry dashboard (Phase 14)
+- Webhook analytics (Phase 14)
 
 ---
 

@@ -130,12 +130,13 @@ src/
 
 ### 2.5 Data Models
 
-**Job Data Schema:**
+**Job Data Schema (Multi-Session):**
 
 ```javascript
 {
   id: "job-uuid",
   type: "send-text" | "send-image" | "send-video" | "send-document",
+  sessionId: "session-abc123",  // ← REQUIRED: Session identifier
   data: {
     to: "628123456789",
     message: "Hello",
@@ -149,9 +150,10 @@ src/
 }
 ```
 
-**Queue Stats Schema:**
+**Queue Stats Schema (Per-Session):**
 
 ```javascript
+// Global stats
 {
   waiting: 5,
   active: 2,
@@ -159,6 +161,15 @@ src/
   failed: 12,
   delayed: 3,
   paused: false
+}
+
+// Per-session stats (optional)
+{
+  sessionId: "session-abc123",
+  waiting: 2,
+  active: 1,
+  completed: 850,
+  failed: 3
 }
 ```
 
@@ -256,12 +267,90 @@ const redis = new Redis({
 
 ## 5. Integration Points
 
-### 5.1 Backward Compatibility
+### 5.1 Multi-Session Worker Routing
 
-**Fallback Strategy:**
+**Worker routes jobs to correct session:**
 
 ```javascript
-// If Redis disabled or unavailable, fallback to in-memory queue
+// src/queue/workers.js
+import { sessionManager } from '../whatsapp/sessionManager.js';
+
+async function processJob(job) {
+  const { sessionId, data, type } = job.data;
+  
+  // Validate sessionId exists
+  if (!sessionId) {
+    throw new Error('Job missing sessionId');
+  }
+  
+  // Get session
+  const session = sessionManager.getSession(sessionId);
+  if (!session) {
+    throw new Error(`Session not found: ${sessionId}`);
+  }
+  
+  // Validate session is connected
+  if (session.status !== 'connected') {
+    throw new Error(`Session ${sessionId} not connected (status: ${session.status})`);
+  }
+  
+  // Route to session-specific client
+  const { sock } = session;
+  const jid = data.to.includes('@') ? data.to : `${data.to}@s.whatsapp.net`;
+  
+  switch (type) {
+    case 'send-text':
+      return await sock.sendMessage(jid, { text: data.message });
+    case 'send-image':
+      return await sock.sendMessage(jid, { 
+        image: data.imageBuffer, 
+        caption: data.caption 
+      });
+    // ... other types
+    default:
+      throw new Error(`Unknown job type: ${type}`);
+  }
+}
+```
+
+### 5.2 API Changes (Strict sessionId)
+
+**Before (Phase 1-8):**
+```javascript
+POST /api/send-text
+{ "to": "628123456789", "message": "Hello" }
+```
+
+**After (Phase 9 + 11):**
+```javascript
+POST /api/send-text
+{
+  "sessionId": "session-abc123",  // ← REQUIRED
+  "to": "628123456789",
+  "message": "Hello"
+}
+
+// Add to queue with sessionId
+const job = await messageQueue.add('send-text', {
+  sessionId: req.body.sessionId,  // ← Pass to job
+  to: req.body.to,
+  message: req.body.message
+});
+
+res.json({ 
+  success: true, 
+  data: { 
+    jobId: job.id, 
+    sessionId: req.body.sessionId,
+    status: 'queued' 
+  } 
+});
+```
+
+### 5.3 Fallback Strategy (Redis Optional)
+
+```javascript
+// src/queue/messageQueue.js
 if (!config.REDIS_ENABLED) {
   logger.warn('Redis disabled, using in-memory queue (messages may be lost on restart)');
   return inMemoryQueue;
@@ -276,37 +365,6 @@ try {
 }
 ```
 
-### 5.2 API Changes
-
-**Before (Phase 1-8):**
-```javascript
-// Direct send with in-memory queue
-await sendTextMessage(to, message);
-res.json({ success: true, data: { messageId, status: 'sent' } });
-```
-
-**After (Phase 9):**
-```javascript
-// Add to queue, return job ID
-const job = await messageQueue.add('send-text', { to, message });
-res.json({ success: true, data: { jobId: job.id, status: 'queued' } });
-```
-
-**Migration:** Add `status` field to response - `queued` instead of `sent`
-
-### 5.3 Rate Limiting Integration
-
-```javascript
-// BullMQ rate limiter replaces express-rate-limit for queue
-const queue = new Queue('whatsapp:messages', {
-  connection: redis,
-  limiter: {
-    max: 20,      // 20 jobs
-    duration: 60000, // per minute
-  },
-});
-```
-
 ---
 
 ## 6. Acceptance Criteria
@@ -315,12 +373,14 @@ const queue = new Queue('whatsapp:messages', {
 
 - [ ] Redis connection established successfully
 - [ ] BullMQ queue created and working
-- [ ] Messages added to queue successfully
-- [ ] Worker processes jobs from queue
-- [ ] Failed jobs retried with backoff
+- [ ] All jobs include `sessionId` field
+- [ ] Worker validates session exists before processing
+- [ ] Worker routes jobs to correct session client
+- [ ] Jobs fail if session not found/connected
+- [ ] Failed jobs retried with exponential backoff (3 attempts)
 - [ ] Queue survives restart (no message loss)
 - [ ] Queue stats API returns correct data
-- [ ] Existing send APIs work (backward compatible)
+- [ ] Fallback to in-memory queue if Redis disabled
 - [ ] Graceful shutdown closes queue cleanly
 - [ ] Tests pass with >80% coverage
 
@@ -328,14 +388,15 @@ const queue = new Queue('whatsapp:messages', {
 
 - [ ] Priority queue (urgent/normal/low)
 - [ ] Scheduled messages (send later)
-- [ ] Failed job dashboard
-- [ ] Queue pause/resume API
+- [ ] Per-session queue stats
+- [ ] Queue pause/resume per session
+- [ ] Failed job retry dashboard
 
 ### Out of Scope
 
-- [ ] Redis cluster support (single instance only)
-- [ ] Queue UI dashboard (Phase 16)
-- [ ] Multiple queue types
+- Redis cluster support (single instance only)
+- Queue UI dashboard (Phase 16)
+- Multiple queue types
 
 ---
 
