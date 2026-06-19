@@ -1,0 +1,17 @@
+{
+  "ignore": [
+    "sessions/*",
+    "data/*",
+    "*.db",
+    "node_modules/*",
+    "dashboard/*",
+    "tests/*",
+    ".git/*"
+  ],
+  "watch": [
+    "src/**/*.js",
+    ".env"
+  ],
+  "ext": "js,json",
+  "delay": 1000
+}
