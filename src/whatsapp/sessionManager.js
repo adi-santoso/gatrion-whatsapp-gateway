@@ -113,13 +113,38 @@ class SessionManager {
             clearTimeout(session.qrTimeoutId);
           }
 
-          session.qrTimeoutId = setTimeout(() => {
+          session.qrTimeoutId = setTimeout(async () => {
             const currentSession = this.sessions.get(sessionId);
             if (currentSession && currentSession.status === 'qr_ready') {
-              console.log(`QR timeout for ${sessionId}, cleaning up...`);
-              this.deleteSession(sessionId).catch(err => {
-                console.error(`Failed to delete session ${sessionId}:`, err.message);
-              });
+              console.log(`QR timeout for ${sessionId}, regenerating...`);
+              
+              try {
+                // Close old socket
+                await currentSession.sock.logout().catch(() => {});
+                
+                // Recreate session (will generate new QR)
+                const sessionPath = path.join('./sessions', sessionId);
+                const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+
+                const sock = makeWASocket({
+                  auth: state,
+                  printQRInTerminal: false,
+                  syncFullHistory: false,
+                  markOnlineOnConnect: false,
+                  generateHighQualityLinkPreview: false,
+                  browser: ['WhatsApp Gateway', 'Chrome', '10.0'],
+                  logger: pino({ level: 'silent' })
+                });
+
+                currentSession.sock = sock;
+                currentSession.status = 'connecting';
+                currentSession.qr = null;
+                
+                this.setupEventHandlers(sessionId, sock, saveCreds);
+                console.log(`Session ${sessionId} recreated for new QR`);
+              } catch (err) {
+                console.error(`Failed to recreate session ${sessionId}:`, err.message);
+              }
             }
           }, 60000);
         } catch (err) {
