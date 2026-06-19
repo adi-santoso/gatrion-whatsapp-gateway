@@ -160,6 +160,8 @@ class SessionManager {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
+        console.log(`Session ${sessionId} closed. Status code: ${statusCode}, shouldReconnect: ${shouldReconnect}`);
+
         session.status = 'disconnected';
         session.qr = null;
 
@@ -184,7 +186,18 @@ class SessionManager {
           console.log(`Reconnecting ${sessionId} (attempt ${session.reconnectAttempts}) in ${delay}ms...`);
           setTimeout(() => this.reconnectSession(sessionId), delay);
         } else {
-          console.log(`Session ${sessionId} disconnected permanently`);
+          if (!shouldReconnect) {
+            // User logged out from WhatsApp (removed device)
+            console.log(`Session ${sessionId} logged out, deleting session...`);
+            loggerService.info(sessionId, 'Session logged out, deleting');
+            this.deleteSession(sessionId).catch(err => {
+              console.error(`Failed to delete session ${sessionId}:`, err.message);
+            });
+          } else {
+            // Max reconnect attempts reached
+            console.log(`Session ${sessionId} disconnected permanently (max retries)`);
+            loggerService.error(sessionId, 'Max reconnect attempts reached');
+          }
         }
       }
 
