@@ -157,7 +157,10 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled Rejection:', reason);
-  shutdown('unhandledRejection');
+  // Don't shutdown on unhandled rejection in development
+  if (config.nodeEnv === 'production') {
+    shutdown('unhandledRejection');
+  }
 });
 
 start();

@@ -114,9 +114,12 @@ class SessionManager {
           }
 
           session.qrTimeoutId = setTimeout(() => {
-            if (session.status === 'qr_ready') {
+            const currentSession = this.sessions.get(sessionId);
+            if (currentSession && currentSession.status === 'qr_ready') {
               console.log(`QR timeout for ${sessionId}, cleaning up...`);
-              this.deleteSession(sessionId);
+              this.deleteSession(sessionId).catch(err => {
+                console.error(`Failed to delete session ${sessionId}:`, err.message);
+              });
             }
           }, 60000);
         } catch (err) {
@@ -263,7 +266,8 @@ class SessionManager {
   async deleteSession(sessionId) {
     const session = this.sessions.get(sessionId);
     if (!session) {
-      throw new Error('Session not found');
+      console.warn(`Session ${sessionId} not found, already deleted`);
+      return;
     }
 
     if (session.qrTimeoutId) {
@@ -273,11 +277,17 @@ class SessionManager {
     try {
       await session.sock.logout();
     } catch (err) {
-      console.error(`Error logging out ${sessionId}:`, err);
+      console.error(`Error logging out ${sessionId}:`, err.message);
     }
 
     this.sessions.delete(sessionId);
-    this.db.deleteSession(sessionId);
+    
+    try {
+      this.db.deleteSession(sessionId);
+    } catch (err) {
+      console.error(`Error deleting from DB ${sessionId}:`, err.message);
+    }
+    
     console.log(`Session ${sessionId} deleted`);
   }
 

@@ -18,10 +18,12 @@ class WebSocketServer {
       let sessionId = socket.handshake.query.sessionId;
       
       if (!sessionId) {
-        console.log('Client connected without sessionId');
+        console.log('[WebSocket] Client connected without sessionId');
         socket.disconnect();
         return;
       }
+      
+      console.log(`[WebSocket] Client connecting with sessionId: ${sessionId}`);
       
       // Remove 'session-' prefix if already present (avoid double prefix)
       if (sessionId.startsWith('session-')) {
@@ -30,10 +32,10 @@ class WebSocketServer {
       
       const roomName = `session-${sessionId}`;
       socket.join(roomName);
-      console.log(`Client joined room: ${roomName}`);
+      console.log(`[WebSocket] Client joined room: ${roomName}`);
       
       socket.on('disconnect', () => {
-        console.log(`Client left room: ${roomName}`);
+        console.log(`[WebSocket] Client left room: ${roomName}`);
       });
     });
   }
