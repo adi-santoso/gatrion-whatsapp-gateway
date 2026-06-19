@@ -15,12 +15,17 @@ class WebSocketServer {
   
   initialize() {
     this.io.on('connection', (socket) => {
-      const sessionId = socket.handshake.query.sessionId;
+      let sessionId = socket.handshake.query.sessionId;
       
       if (!sessionId) {
         console.log('Client connected without sessionId');
         socket.disconnect();
         return;
+      }
+      
+      // Remove 'session-' prefix if already present (avoid double prefix)
+      if (sessionId.startsWith('session-')) {
+        sessionId = sessionId.substring(8); // Remove 'session-' (8 chars)
       }
       
       const roomName = `session-${sessionId}`;

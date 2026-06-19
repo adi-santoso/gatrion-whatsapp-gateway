@@ -97,11 +97,16 @@ class SessionManager {
           session.qr = qrBase64;
           session.status = 'qr_ready';
 
+          console.log(`QR generated for ${sessionId}`);
+
           if (this.wsServer) {
+            console.log(`Emitting qr_ready to session: ${sessionId}`);
             this.wsServer.emitToSession(sessionId, 'qr_ready', {
               sessionId,
               qrCode: qrBase64
             });
+          } else {
+            console.warn(`WebSocket server not available for ${sessionId}`);
           }
 
           if (session.qrTimeoutId) {
