@@ -39,7 +39,16 @@ class WebSocketServer {
   }
   
   emitToSession(sessionId, event, data) {
-    this.io.to(`session-${sessionId}`).emit(event, data);
+    // Remove 'session-' prefix if already present (same as in initialize)
+    if (sessionId.startsWith('session-')) {
+      sessionId = sessionId.substring(8);
+    }
+    
+    const roomName = `session-${sessionId}`;
+    console.log(`[WebSocket] Emitting '${event}' to room: ${roomName}`);
+    console.log(`[WebSocket] Connected clients in room: ${this.io.sockets.adapter.rooms.get(roomName)?.size || 0}`);
+    console.log(`[WebSocket] Event data:`, JSON.stringify(data).substring(0, 100) + '...');
+    this.io.to(roomName).emit(event, data);
   }
   
   emitToAll(event, data) {
@@ -47,6 +56,11 @@ class WebSocketServer {
   }
   
   async getConnectedClients(sessionId) {
+    // Remove 'session-' prefix if already present
+    if (sessionId.startsWith('session-')) {
+      sessionId = sessionId.substring(8);
+    }
+    
     const roomName = `session-${sessionId}`;
     const sockets = await this.io.in(roomName).fetchSockets();
     return sockets.length;

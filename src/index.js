@@ -62,8 +62,8 @@ async function start() {
     
     await sessionManager.restoreAllSessions();
     
-    console.log('Initializing WhatsApp client...');
-    await initializeClient();
+    // Old single-session client removed - using SessionManager for multi-session
+    // await initializeClient();
     
     const wsServer = new WebSocketServer(httpServer);
     wsServer.initialize();
