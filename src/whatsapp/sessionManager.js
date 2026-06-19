@@ -349,17 +349,42 @@ class SessionManager {
     
     for (const dbSession of dbSessions) {
       if (this.initializingLock.has(dbSession.id)) continue;
+      if (this.sessions.has(dbSession.id)) continue; // Skip if already loaded
       
       try {
-        await this.createSession(
-          dbSession.id,
-          dbSession.name,
-          {
-            webhookUrl: dbSession.webhook_url,
-            webhookSecret: dbSession.webhook_secret,
-            webhookEnabled: dbSession.webhook_enabled === 1
-          }
-        );
+        const sessionPath = path.join('./sessions', dbSession.id);
+        const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+
+        const sock = makeWASocket({
+          auth: state,
+          printQRInTerminal: false,
+          syncFullHistory: false,
+          markOnlineOnConnect: false,
+          generateHighQualityLinkPreview: false,
+          browser: ['WhatsApp Gateway', 'Chrome', '10.0'],
+          logger: pino({ level: 'silent' })
+        });
+
+        const session = {
+          id: dbSession.id,
+          name: dbSession.name,
+          phone: dbSession.phone,
+          status: dbSession.status || 'disconnected',
+          sock: sock,
+          qr: null,
+          createdAt: new Date(dbSession.created_at),
+          lastConnectedAt: dbSession.last_connected_at ? new Date(dbSession.last_connected_at) : null,
+          reconnectAttempts: 0,
+          webhookUrl: dbSession.webhook_url,
+          webhookSecret: dbSession.webhook_secret,
+          webhookEnabled: dbSession.webhook_enabled === 1,
+          qrTimeoutId: null
+        };
+
+        this.sessions.set(dbSession.id, session);
+        this.setupEventHandlers(dbSession.id, sock, saveCreds);
+        
+        console.log(`Restored session: ${dbSession.id}`);
         
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (err) {
