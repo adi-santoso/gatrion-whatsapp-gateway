@@ -351,7 +351,14 @@ class SessionManager {
 
   getSessionStatus(sessionId) {
     const session = this.sessions.get(sessionId);
-    return session ? session.status : null;
+    if (!session) return null;
+    
+    return {
+      sessionId: session.id,
+      sessionName: session.name,
+      status: session.status,
+      phone: session.phone
+    };
   }
 
   isSessionConnected(sessionId) {
