@@ -26,6 +26,18 @@ const httpServer = createServer(app);
 app.use(securityHeaders);
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
+
+// Serve dashboard static files BEFORE API routes
+app.use('/dashboard', express.static(path.join(__dirname, '../dashboard/dist'), {
+  setHeaders: (res, filepath) => {
+    if (filepath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (filepath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
+
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
   next();
@@ -34,8 +46,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api', routes);
 
-// Serve dashboard static files
-app.use('/dashboard', express.static(path.join(__dirname, '../dashboard/dist')));
+// Dashboard SPA fallback
 app.get('/dashboard/*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dashboard/dist/index.html'));
 });
