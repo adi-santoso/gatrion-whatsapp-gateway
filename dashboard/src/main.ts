@@ -1,60 +1,77 @@
 import './style.css'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
-
-<div class="ticks"></div>
-
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
+  <div style="max-width: 1200px; margin: 0 auto; padding: 40px 20px;">
+    <h1 style="font-size: 2.5rem; margin-bottom: 10px;">WhatsApp Gateway Dashboard</h1>
+    <p style="color: #888; margin-bottom: 40px;">Multi-Session WhatsApp API Gateway</p>
+    
+    <div style="display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+      <div style="background: #1e1e1e; padding: 30px; border-radius: 8px;">
+        <h2 style="margin-top: 0;">📱 Sessions</h2>
+        <p>Manage your WhatsApp sessions</p>
+        <button id="view-sessions" style="margin-top: 20px; padding: 10px 20px; background: #646cff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+          View Sessions
+        </button>
+      </div>
+      
+      <div style="background: #1e1e1e; padding: 30px; border-radius: 8px;">
+        <h2 style="margin-top: 0;">📊 API Status</h2>
+        <p id="api-status">Checking...</p>
+        <code style="display: block; margin-top: 10px; padding: 10px; background: #000; border-radius: 4px; font-size: 0.85rem;">
+          GET /api/health
+        </code>
+      </div>
+      
+      <div style="background: #1e1e1e; padding: 30px; border-radius: 8px;">
+        <h2 style="margin-top: 0;">📚 Documentation</h2>
+        <p>API endpoints and usage guide</p>
+        <a href="https://github.com/adi-santoso/gatrion-whatsapp-gateway" target="_blank" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #333; color: white; text-decoration: none; border-radius: 4px;">
+          View on GitHub
         </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+      </div>
+    </div>
+    
+    <div style="margin-top: 40px; padding: 30px; background: #1e1e1e; border-radius: 8px;">
+      <h2>Quick Start</h2>
+      <pre style="background: #000; padding: 20px; border-radius: 4px; overflow-x: auto;"><code># Create a session
+curl -X POST http://localhost:3333/api/sessions \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{"name": "My Session"}'
 
-<div class="ticks"></div>
-<section id="spacer"></section>
+# Send a message
+curl -X POST http://localhost:3333/api/send-text \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{
+    "sessionId": "session-xxx",
+    "to": "628123456789",
+    "message": "Hello from WhatsApp Gateway!"
+  }'</code></pre>
+    </div>
+  </div>
 `
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+// Check API health
+async function checkAPIHealth() {
+  try {
+    const res = await fetch('/api/health')
+    const data = await res.json()
+    const statusEl = document.querySelector('#api-status')
+    if (statusEl) {
+      statusEl.innerHTML = `✅ <strong>Online</strong><br><small>Uptime: ${Math.floor(data.uptime / 1000)}s</small>`
+    }
+  } catch (error) {
+    const statusEl = document.querySelector('#api-status')
+    if (statusEl) {
+      statusEl.innerHTML = `❌ <strong>Offline</strong>`
+    }
+  }
+}
+
+// View sessions
+document.querySelector('#view-sessions')?.addEventListener('click', async () => {
+  window.location.href = '/api/sessions'
+})
+
+checkAPIHealth()
