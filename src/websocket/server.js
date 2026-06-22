@@ -15,27 +15,54 @@ class WebSocketServer {
   
   initialize() {
     this.io.on('connection', (socket) => {
+      console.log(`[WebSocket] Client connected: ${socket.id}`);
+      
       let sessionId = socket.handshake.query.sessionId;
       
-      if (!sessionId) {
-        console.log('[WebSocket] Client connected without sessionId');
-        socket.disconnect();
-        return;
+      // Auto-join from query parameter
+      if (sessionId) {
+        console.log(`[WebSocket] Client has sessionId in query: ${sessionId}`);
+        
+        // Remove 'session-' prefix if already present
+        if (sessionId.startsWith('session-')) {
+          sessionId = sessionId.substring(8);
+        }
+        
+        const roomName = `session-${sessionId}`;
+        socket.join(roomName);
+        console.log(`[WebSocket] Client auto-joined room: ${roomName}`);
       }
       
-      console.log(`[WebSocket] Client connecting with sessionId: ${sessionId}`);
+      // Listen for manual join-session event
+      socket.on('join-session', (sid) => {
+        console.log(`[WebSocket] Client manually joining session: ${sid}`);
+        
+        // Remove 'session-' prefix if already present
+        if (sid.startsWith('session-')) {
+          sid = sid.substring(8);
+        }
+        
+        const roomName = `session-${sid}`;
+        socket.join(roomName);
+        console.log(`[WebSocket] Client manually joined room: ${roomName}`);
+        
+        // Confirm join
+        socket.emit('joined-session', { sessionId: `session-${sid}`, room: roomName });
+      });
       
-      // Remove 'session-' prefix if already present (avoid double prefix)
-      if (sessionId.startsWith('session-')) {
-        sessionId = sessionId.substring(8); // Remove 'session-' (8 chars)
-      }
-      
-      const roomName = `session-${sessionId}`;
-      socket.join(roomName);
-      console.log(`[WebSocket] Client joined room: ${roomName}`);
+      // Listen for leave-session event
+      socket.on('leave-session', (sid) => {
+        if (sid.startsWith('session-')) {
+          sid = sid.substring(8);
+        }
+        
+        const roomName = `session-${sid}`;
+        socket.leave(roomName);
+        console.log(`[WebSocket] Client left room: ${roomName}`);
+      });
       
       socket.on('disconnect', () => {
-        console.log(`[WebSocket] Client left room: ${roomName}`);
+        console.log(`[WebSocket] Client disconnected: ${socket.id}`);
       });
     });
   }
