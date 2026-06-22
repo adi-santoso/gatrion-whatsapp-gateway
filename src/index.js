@@ -38,17 +38,6 @@ app.use('/dashboard', express.static(path.join(__dirname, '../dashboard/dist'), 
   }
 }));
 
-// Fix dashboard asset paths (HTML references /assets/* not /dashboard/assets/*)
-app.use('/assets', express.static(path.join(__dirname, '../dashboard/dist/assets'), {
-  setHeaders: (res, filepath) => {
-    if (filepath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (filepath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
-  }
-}));
-
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
   next();
