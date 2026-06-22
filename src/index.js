@@ -27,6 +27,29 @@ app.use(securityHeaders);
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 
+// Block sensitive file access
+app.use((req, res, next) => {
+  const blockedPaths = [
+    '/.env',
+    '/.git',
+    '/package.json',
+    '/package-lock.json',
+    '/.npmrc',
+    '/node_modules',
+    '/sessions',
+    '/data'
+  ];
+  
+  if (blockedPaths.some(path => req.path.startsWith(path))) {
+    return res.status(403).json({
+      success: false,
+      error: 'Forbidden'
+    });
+  }
+  
+  next();
+});
+
 // Serve dashboard static files BEFORE API routes
 app.use('/dashboard', express.static(path.join(__dirname, '../dashboard/dist'), {
   setHeaders: (res, filepath) => {
@@ -37,6 +60,9 @@ app.use('/dashboard', express.static(path.join(__dirname, '../dashboard/dist'), 
     }
   }
 }));
+
+// Serve public files (robots.txt, etc)
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);

@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /api/
+Disallow: /sessions/
+Disallow: /data/
+Disallow: /.env
+Disallow: /package.json
+Allow: /dashboard/
