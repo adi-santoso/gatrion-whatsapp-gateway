@@ -119,8 +119,8 @@ class SessionManager {
               console.log(`QR timeout for ${sessionId}, regenerating...`);
               
               try {
-                // Close old socket
-                await currentSession.sock.logout().catch(() => {});
+                // Close old socket WITHOUT logout (prevents status 401)
+                currentSession.sock.end(undefined);
                 
                 // Recreate session (will generate new QR)
                 const sessionPath = path.join('./sessions', sessionId);
