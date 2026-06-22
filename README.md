@@ -162,6 +162,14 @@ http://localhost:3333/api
 All endpoints require `x-api-key` header. See [Authentication](#-authentication) section above.
 
 ### Session Management (8 endpoints)
+- Create Session
+- List Sessions
+- Get Session QR Code
+- Get Session Status
+- Restore Sessions
+- Logout Session
+- Update Webhook Config
+- Delete Session
 
 #### Create Session
 ```bash
@@ -210,6 +218,7 @@ Response: 200
 #### Get Session QR Code
 ```bash
 GET /api/sessions/:id/qr
+x-api-key: your-api-key-here
 
 Response: 200
 {
@@ -221,19 +230,98 @@ Response: 200
 }
 ```
 
-#### Delete Session
+#### Get Session Status
 ```bash
-DELETE /api/sessions/:id
+GET /api/sessions/:id/status
+x-api-key: your-api-key-here
 
 Response: 200
 {
-  "success": true
+  "success": true,
+  "data": {
+    "sessionId": "session-abc123",
+    "sessionName": "Sales Department",
+    "status": "connected",
+    "phone": "628123456789"
+  }
+}
+```
+
+#### Delete Session
+```bash
+DELETE /api/sessions/:id
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "message": "Session deleted successfully"
+}
+```
+
+#### Restore Sessions (on startup)
+```bash
+POST /api/sessions/restore
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "restored": 3,
+    "sessions": [
+      {
+        "sessionId": "session-abc123",
+        "status": "connecting"
+      }
+    ]
+  }
+}
+```
+
+#### Logout Session
+```bash
+POST /api/sessions/:id/logout
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "message": "Session logged out successfully"
+}
+```
+
+#### Update Webhook Config
+```bash
+PUT /api/sessions/:id/webhook
+Content-Type: application/json
+x-api-key: your-api-key-here
+
+{
+  "webhookUrl": "https://new-backend.com/webhook",
+  "webhookSecret": "new-secret-key",
+  "webhookEnabled": true
+}
+
+Response: 200
+{
+  "success": true,
+  "message": "Webhook configuration updated"
 }
 ```
 
 ### Messaging (8 endpoints)
 
 **Note:** All messaging endpoints require `x-api-key` header.
+
+- Send Text Message
+- Send Image
+- Send Video
+- Send Audio
+- Send Document
+- Send Location
+- Send Contact
+- Send Sticker
 
 #### Send Text Message
 ```bash
@@ -281,40 +369,71 @@ Response: 200
 ```bash
 POST /api/send-video
 Content-Type: multipart/form-data
+x-api-key: your-api-key-here
 
 sessionId: session-abc123
 to: 628123456789
 caption: Video caption
 video: [file] (max 50MB)
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABC456...",
+    "status": "sent"
+  }
+}
 ```
 
 #### Send Audio
 ```bash
 POST /api/send-audio
 Content-Type: multipart/form-data
+x-api-key: your-api-key-here
 
 sessionId: session-abc123
 to: 628123456789
 ptt: true  (for voice note)
 audio: [file] (max 16MB)
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABC789...",
+    "status": "sent"
+  }
+}
 ```
 
 #### Send Document
 ```bash
 POST /api/send-document
 Content-Type: multipart/form-data
+x-api-key: your-api-key-here
 
 sessionId: session-abc123
 to: 628123456789
 filename: report.pdf
 caption: Monthly report
 document: [file] (max 100MB)
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABCDEF...",
+    "status": "sent"
+  }
+}
 ```
 
 #### Send Location
 ```bash
 POST /api/send-location
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
@@ -324,12 +443,22 @@ Content-Type: application/json
   "name": "Office",
   "address": "Jakarta"
 }
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABCGHI...",
+    "status": "sent"
+  }
+}
 ```
 
 #### Send Contact
 ```bash
 POST /api/send-contact
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
@@ -341,39 +470,117 @@ Content-Type: application/json
     "email": "john@example.com"
   }
 }
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABCJKL...",
+    "status": "sent"
+  }
+}
 ```
 
 #### Send Sticker
 ```bash
 POST /api/send-sticker
 Content-Type: multipart/form-data
+x-api-key: your-api-key-here
 
 sessionId: session-abc123
 to: 628123456789
 sticker: [file] (max 1MB, WebP format)
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABCMNO...",
+    "status": "sent"
+  }
+}
 ```
 
 ### Group Management (11 endpoints)
 
+- List Groups
+- Get Group Details
+- Create Group
+- Add Participants
+- Remove Participants
+- Send to Group
+- Update Group Info
+- Update Group Picture
+- Leave Group
+- Get Group Invite Code
+- Promote to Admin
+- Demote Admin
+
 #### List Groups
 ```bash
 GET /api/groups?sessionId=session-abc123
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "data": [
+    {
+      "id": "120363123456789012@g.us",
+      "subject": "Sales Team",
+      "owner": "628123456789@s.whatsapp.net",
+      "size": 15,
+      "creation": 1623456789
+    }
+  ]
+}
 ```
 
 #### Get Group Details
 ```bash
 GET /api/groups/:groupId?sessionId=session-abc123
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "120363123456789012@g.us",
+    "subject": "Sales Team",
+    "owner": "628123456789@s.whatsapp.net",
+    "desc": "Team collaboration group",
+    "participants": [
+      {
+        "id": "628123456789@s.whatsapp.net",
+        "admin": "superadmin"
+      }
+    ],
+    "size": 15,
+    "creation": 1623456789
+  }
+}
 ```
 
 #### Create Group
 ```bash
 POST /api/groups/create
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
   "name": "Sales Team",
   "participants": ["628111222333", "628999888777"]
+}
+
+Response: 201
+{
+  "success": true,
+  "data": {
+    "id": "120363123456789012@g.us",
+    "subject": "Sales Team",
+    "participants": 2
+  }
 }
 ```
 
@@ -381,10 +588,19 @@ Content-Type: application/json
 ```bash
 POST /api/groups/:groupId/participants
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
   "participants": ["628111222333"]
+}
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "added": ["628111222333@s.whatsapp.net"]
+  }
 }
 ```
 
@@ -392,10 +608,19 @@ Content-Type: application/json
 ```bash
 DELETE /api/groups/:groupId/participants
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
   "participants": ["628111222333"]
+}
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "removed": ["628111222333@s.whatsapp.net"]
+  }
 }
 ```
 
@@ -403,15 +628,139 @@ Content-Type: application/json
 ```bash
 POST /api/groups/:groupId/send
 Content-Type: application/json
+x-api-key: your-api-key-here
 
 {
   "sessionId": "session-abc123",
   "message": "Team announcement!",
   "mentions": ["628111222333"]
 }
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "3EB0ABCPQR...",
+    "status": "sent"
+  }
+}
+```
+
+#### Update Group Info
+```bash
+PUT /api/groups/:groupId/info
+Content-Type: application/json
+x-api-key: your-api-key-here
+
+{
+  "sessionId": "session-abc123",
+  "subject": "New Group Name",
+  "description": "Updated description"
+}
+
+Response: 200
+{
+  "success": true,
+  "message": "Group info updated"
+}
+```
+
+#### Update Group Picture
+```bash
+PUT /api/groups/:groupId/picture
+Content-Type: multipart/form-data
+x-api-key: your-api-key-here
+
+sessionId: session-abc123
+image: [file]
+
+Response: 200
+{
+  "success": true,
+  "message": "Group picture updated"
+}
+```
+
+#### Leave Group
+```bash
+POST /api/groups/:groupId/leave
+Content-Type: application/json
+x-api-key: your-api-key-here
+
+{
+  "sessionId": "session-abc123"
+}
+
+Response: 200
+{
+  "success": true,
+  "message": "Left group successfully"
+}
+```
+
+#### Get Group Invite Code
+```bash
+GET /api/groups/:groupId/invite?sessionId=session-abc123
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "code": "L2a3bCd4Ef5g"
+  }
+}
+```
+
+#### Promote to Admin
+```bash
+POST /api/groups/:groupId/promote
+Content-Type: application/json
+x-api-key: your-api-key-here
+
+{
+  "sessionId": "session-abc123",
+  "participants": ["628111222333"]
+}
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "promoted": ["628111222333@s.whatsapp.net"]
+  }
+}
+```
+
+#### Demote Admin
+```bash
+POST /api/groups/:groupId/demote
+Content-Type: application/json
+x-api-key: your-api-key-here
+
+{
+  "sessionId": "session-abc123",
+  "participants": ["628111222333"]
+}
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "demoted": ["628111222333@s.whatsapp.net"]
+  }
+}
 ```
 
 ### Templates & Bulk Sending (7 endpoints)
+
+- Create Template
+- List Templates
+- Get Template by ID
+- Update Template
+- Delete Template
+- Bulk Send
+- Get Bulk Progress
 
 #### Create Template
 ```bash
@@ -438,6 +787,76 @@ Response: 201
 #### List Templates
 ```bash
 GET /api/templates?sessionId=session-abc123
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "data": [
+    {
+      "id": "template-xyz789",
+      "name": "payment_reminder",
+      "category": "transactional",
+      "content": "Hi {{name}}, your payment of {{amount}} is due on {{date}}.",
+      "variables": ["name", "amount", "date"],
+      "createdAt": "2026-06-18T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### Get Template by ID
+```bash
+GET /api/templates/:id?sessionId=session-abc123
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "template-xyz789",
+    "name": "payment_reminder",
+    "category": "transactional",
+    "content": "Hi {{name}}, your payment of {{amount}} is due on {{date}}.",
+    "variables": ["name", "amount", "date"],
+    "createdAt": "2026-06-18T10:00:00.000Z"
+  }
+}
+```
+
+#### Update Template
+```bash
+PUT /api/templates/:id
+Content-Type: application/json
+x-api-key: your-api-key-here
+
+{
+  "sessionId": "session-abc123",
+  "name": "payment_reminder_v2",
+  "category": "transactional",
+  "content": "Hello {{name}}, your payment of {{amount}} is overdue since {{date}}."
+}
+
+Response: 200
+{
+  "success": true,
+  "data": {
+    "id": "template-xyz789",
+    "variables": ["name", "amount", "date"]
+  }
+}
+```
+
+#### Delete Template
+```bash
+DELETE /api/templates/:id?sessionId=session-abc123
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "message": "Template deleted successfully"
+}
 ```
 
 #### Bulk Send
@@ -503,6 +922,10 @@ Response: 200
 
 ### Analytics (3 endpoints)
 
+- Get Session Analytics
+- Get Aggregate Analytics
+- Reset Analytics
+
 #### Get Session Analytics
 ```bash
 GET /api/analytics?sessionId=session-abc123
@@ -530,6 +953,7 @@ Response: 200
 #### Get Aggregate Analytics
 ```bash
 GET /api/analytics/aggregate
+x-api-key: your-api-key-here
 
 Response: 200
 {
@@ -545,6 +969,228 @@ Response: 200
     "totalReconnects": 5
   }
 }
+```
+
+#### Reset Analytics
+```bash
+POST /api/analytics/:sessionId/reset
+x-api-key: your-api-key-here
+
+Response: 200
+{
+  "success": true,
+  "message": "Analytics reset successfully"
+}
+```
+
+---
+
+## 🌐 WebSocket Events
+
+Connect to WebSocket server at: `ws://localhost:3333`
+
+### Client Connection
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3333', {
+  transports: ['websocket'], // Pure WebSocket, no polling
+  auth: {
+    apiKey: 'your-api-key-here'
+  }
+});
+
+// Join session room to receive events
+socket.emit('join-session', 'session-abc123');
+```
+
+### Events from Server → Client
+
+#### 1. QR Code Event
+Emitted when QR code is generated (2-3s after session creation).
+
+```javascript
+socket.on('qr', (data) => {
+  console.log(data);
+  // Display QR code to user
+});
+```
+
+**Payload:**
+```json
+{
+  "sessionId": "session-abc123",
+  "qr": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+}
+```
+
+#### 2. Status Event
+Emitted when session status changes.
+
+```javascript
+socket.on('status', (data) => {
+  console.log(data);
+  // Update UI status indicator
+});
+```
+
+**Payload:**
+```json
+{
+  "sessionId": "session-abc123",
+  "status": "connected",
+  "phone": "628123456789"
+}
+```
+
+**Status values:**
+- `connecting` - Initializing session
+- `qr_ready` - QR code ready to scan
+- `connected` - Successfully authenticated
+- `disconnected` - Connection lost
+- `failed` - Authentication failed
+
+#### 3. Ready Event
+Emitted when session is fully connected and ready to send messages.
+
+```javascript
+socket.on('ready', (data) => {
+  console.log(data);
+  // Enable send message button
+});
+```
+
+**Payload:**
+```json
+{
+  "sessionId": "session-abc123",
+  "phone": "628123456789",
+  "name": "Sales Department"
+}
+```
+
+#### 4. Message Event
+Emitted when a message is received (incoming message).
+
+```javascript
+socket.on('message', (data) => {
+  console.log(data);
+  // Display incoming message in chat UI
+});
+```
+
+**Payload:**
+```json
+{
+  "sessionId": "session-abc123",
+  "messageId": "3EB0ABC123...",
+  "from": "628999999999@s.whatsapp.net",
+  "fromNumber": "628999999999",
+  "fromName": "Customer Name",
+  "timestamp": "2026-06-18T10:30:00.000Z",
+  "isGroup": false,
+  "groupId": null,
+  "message": {
+    "type": "text",
+    "text": "Hello!"
+  }
+}
+```
+
+**Message types:**
+- `text` - Text message
+- `image` - Image with optional caption
+- `video` - Video with optional caption
+- `audio` - Audio/voice note
+- `document` - Document file
+- `location` - Location coordinates
+- `contact` - Contact card
+- `sticker` - Sticker
+
+#### 5. Error Event
+Emitted when an error occurs in the session.
+
+```javascript
+socket.on('error', (data) => {
+  console.error(data);
+  // Show error notification
+});
+```
+
+**Payload:**
+```json
+{
+  "sessionId": "session-abc123",
+  "error": "Connection timeout",
+  "code": "ETIMEDOUT"
+}
+```
+
+### Events from Client → Server
+
+#### Join Session Room
+Join a session room to receive events for that specific session.
+
+```javascript
+socket.emit('join-session', 'session-abc123');
+```
+
+#### Leave Session Room
+Leave a session room to stop receiving events.
+
+```javascript
+socket.emit('leave-session', 'session-abc123');
+```
+
+### Example: Complete WebSocket Flow
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3333', {
+  transports: ['websocket'],
+  auth: { apiKey: 'your-api-key' }
+});
+
+// Join session room
+socket.emit('join-session', 'session-abc123');
+
+// Listen for QR code
+socket.on('qr', (data) => {
+  console.log('QR Code received:', data.qr);
+  // Display QR in UI
+});
+
+// Listen for status changes
+socket.on('status', (data) => {
+  console.log('Status:', data.status);
+  if (data.status === 'connected') {
+    console.log('Phone:', data.phone);
+  }
+});
+
+// Listen for ready event
+socket.on('ready', (data) => {
+  console.log('Session ready:', data);
+  // Enable messaging features
+});
+
+// Listen for incoming messages
+socket.on('message', (data) => {
+  console.log('New message from:', data.fromNumber);
+  console.log('Message:', data.message);
+});
+
+// Listen for errors
+socket.on('error', (data) => {
+  console.error('Error:', data.error);
+});
+
+// Clean up on disconnect
+socket.on('disconnect', () => {
+  console.log('WebSocket disconnected');
+});
 ```
 
 ---

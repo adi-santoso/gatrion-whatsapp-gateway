@@ -13,6 +13,24 @@ export async function sendText(req, res) {
       });
     }
     
+    // Check if session exists
+    const sessionStatus = sessionManager.getSessionStatus(sessionId);
+    if (!sessionStatus) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+    
+    // Check if session is connected
+    if (!sessionManager.isSessionConnected(sessionId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session not connected',
+        currentStatus: sessionStatus.status
+      });
+    }
+    
     // If Redis disabled, send directly
     if (!config.redis.enabled) {
       const result = await sessionManager.sendTextMessage(sessionId, to, message);

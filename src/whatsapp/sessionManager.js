@@ -145,6 +145,8 @@ class SessionManager {
               } catch (err) {
                 console.error(`Failed to recreate session ${sessionId}:`, err.message);
               }
+            } else {
+              console.log(`Skipping QR timeout for ${sessionId} - status: ${currentSession?.status}`);
             }
           }, 60000);
         } catch (err) {
@@ -446,12 +448,48 @@ class SessionManager {
       throw new Error('Session not found');
     }
     if (!this.isSessionConnected(sessionId)) {
-      throw new Error('Session not connected');
+      throw new Error(`Session not connected. Current status: ${session.status}`);
     }
 
-    const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-    const result = await session.sock.sendMessage(jid, { text: message });
-    return { id: result.key.id, status: 'sent' };
+    try {
+      // Normalize phone number format
+      let normalizedTo = to.replace(/\D/g, ''); // Remove non-digits
+      
+      // Convert 08xxx to 628xxx
+      if (normalizedTo.startsWith('08')) {
+        normalizedTo = '62' + normalizedTo.substring(1);
+      } else if (normalizedTo.startsWith('8')) {
+        normalizedTo = '62' + normalizedTo;
+      } else if (!normalizedTo.startsWith('62')) {
+        normalizedTo = '62' + normalizedTo;
+      }
+      
+      const jid = normalizedTo.includes('@s.whatsapp.net') ? normalizedTo : `${normalizedTo}@s.whatsapp.net`;
+      
+      console.log(`[${sessionId}] Sending to: ${to} → ${jid}`);
+      
+      // Add timeout wrapper for Baileys sendMessage (max 30 seconds)
+      const sendPromise = session.sock.sendMessage(jid, { text: message });
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Message send timeout after 30s')), 30000)
+      );
+      
+      const result = await Promise.race([sendPromise, timeoutPromise]);
+      
+      // Track analytics
+      analyticsService.trackMessageSent(sessionId, 'text');
+      
+      console.log(`[${sessionId}] Message sent to ${jid}: ${result.key.id}`);
+      
+      return { id: result.key.id, status: 'sent' };
+    } catch (error) {
+      analyticsService.trackMessageFailed(sessionId);
+      
+      // Log detailed error for debugging
+      console.error(`[${sessionId}] Failed to send message to ${to}:`, error.message);
+      
+      throw error;
+    }
   }
 
   async sendImageMessage(sessionId, to, imageBuffer, options = {}) {
