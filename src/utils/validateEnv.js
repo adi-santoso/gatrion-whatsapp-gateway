@@ -19,9 +19,9 @@ export function validateEnvironment() {
     console.warn('WARNING: API_KEY not set (development mode)');
   }
 
-  // Check WA_SESSION_PATH
-  if (!process.env.WA_SESSION_PATH) {
-    errors.push('WA_SESSION_PATH is required');
+  // Check WHATSAPP_SESSION_PATH
+  if (!process.env.WHATSAPP_SESSION_PATH) {
+    errors.push('WHATSAPP_SESSION_PATH is required');
   }
 
   // Handle validation errors
