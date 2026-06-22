@@ -188,6 +188,7 @@ class SessionManager {
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         console.log(`Session ${sessionId} closed. Status code: ${statusCode}, shouldReconnect: ${shouldReconnect}`);
+        console.log(`Disconnect reason:`, lastDisconnect?.error?.message || 'Unknown');
 
         session.status = 'disconnected';
         session.qr = null;
@@ -205,12 +206,18 @@ class SessionManager {
           });
         }
 
+        // Status code 515 = restartRequired (connection issue, not real disconnect)
+        // Status code 428 = connectionClosed (temporary network issue)
+        const isTemporaryIssue = statusCode === 515 || statusCode === 428;
+
         if (shouldReconnect && session.reconnectAttempts < 5) {
-          const delay = Math.min(1000 * Math.pow(2, session.reconnectAttempts), 30000);
+          // For temporary issues, use shorter delay
+          const baseDelay = isTemporaryIssue ? 500 : 1000;
+          const delay = Math.min(baseDelay * Math.pow(2, session.reconnectAttempts), 30000);
           session.reconnectAttempts++;
           analyticsService.trackReconnect(sessionId);
-          loggerService.warn(sessionId, 'Reconnecting', { attempt: session.reconnectAttempts });
-          console.log(`Reconnecting ${sessionId} (attempt ${session.reconnectAttempts}) in ${delay}ms...`);
+          loggerService.warn(sessionId, 'Reconnecting', { attempt: session.reconnectAttempts, statusCode });
+          console.log(`Reconnecting ${sessionId} (attempt ${session.reconnectAttempts}) in ${delay}ms... [Status: ${statusCode}]`);
           setTimeout(() => this.reconnectSession(sessionId), delay);
         } else {
           if (!shouldReconnect) {
@@ -221,9 +228,10 @@ class SessionManager {
               console.error(`Failed to delete session ${sessionId}:`, err.message);
             });
           } else {
-            // Max reconnect attempts reached
-            console.log(`Session ${sessionId} disconnected permanently (max retries)`);
-            loggerService.error(sessionId, 'Max reconnect attempts reached');
+            // Max reconnect attempts reached - reset for next try
+            console.log(`Session ${sessionId} max retries reached, resetting counter for next connection attempt`);
+            session.reconnectAttempts = 0;
+            loggerService.error(sessionId, 'Max reconnect attempts reached, waiting for next QR scan');
           }
         }
       }
