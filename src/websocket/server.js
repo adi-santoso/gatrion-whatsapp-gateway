@@ -14,8 +14,25 @@ class WebSocketServer {
   }
   
   initialize() {
+    // Log all connection attempts
+    this.io.engine.on('connection_error', (err) => {
+      console.log('[WebSocket] Connection error:', err.message);
+      console.log('[WebSocket] Error details:', err);
+    });
+    
     this.io.on('connection', (socket) => {
-      console.log(`[WebSocket] Client connected: ${socket.id}`);
+      console.log('[WebSocket] ============================================');
+      console.log('[WebSocket] Client connected!');
+      console.log('[WebSocket] Socket ID:', socket.id);
+      console.log('[WebSocket] Transport:', socket.conn.transport.name);
+      console.log('[WebSocket] Remote address:', socket.handshake.address);
+      console.log('[WebSocket] Query params:', socket.handshake.query);
+      console.log('[WebSocket] Headers:', {
+        origin: socket.handshake.headers.origin,
+        referer: socket.handshake.headers.referer,
+        userAgent: socket.handshake.headers['user-agent']
+      });
+      console.log('[WebSocket] ============================================');
       
       let sessionId = socket.handshake.query.sessionId;
       
@@ -31,6 +48,9 @@ class WebSocketServer {
         const roomName = `session-${sessionId}`;
         socket.join(roomName);
         console.log(`[WebSocket] Client auto-joined room: ${roomName}`);
+        console.log(`[WebSocket] Total clients in room: ${this.io.sockets.adapter.rooms.get(roomName)?.size || 0}`);
+      } else {
+        console.log('[WebSocket] Client connected without sessionId in query');
       }
       
       // Listen for manual join-session event
@@ -45,6 +65,7 @@ class WebSocketServer {
         const roomName = `session-${sid}`;
         socket.join(roomName);
         console.log(`[WebSocket] Client manually joined room: ${roomName}`);
+        console.log(`[WebSocket] Total clients in room: ${this.io.sockets.adapter.rooms.get(roomName)?.size || 0}`);
         
         // Confirm join
         socket.emit('joined-session', { sessionId: `session-${sid}`, room: roomName });
@@ -61,8 +82,13 @@ class WebSocketServer {
         console.log(`[WebSocket] Client left room: ${roomName}`);
       });
       
-      socket.on('disconnect', () => {
+      socket.on('disconnect', (reason) => {
         console.log(`[WebSocket] Client disconnected: ${socket.id}`);
+        console.log(`[WebSocket] Disconnect reason: ${reason}`);
+      });
+      
+      socket.on('error', (err) => {
+        console.error(`[WebSocket] Socket error for ${socket.id}:`, err);
       });
     });
   }
