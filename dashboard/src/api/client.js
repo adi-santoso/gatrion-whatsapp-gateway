@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3000/api';
+// Use relative URL for production compatibility
+const API_BASE = window.location.origin + '/api';
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -8,6 +9,27 @@ export const api = axios.create({
     'Content-Type': 'application/json'
   }
 });
+
+// Add API key to all requests
+api.interceptors.request.use((config) => {
+  const apiKey = localStorage.getItem('apiKey');
+  if (apiKey) {
+    config.headers['x-api-key'] = apiKey;
+  }
+  return config;
+});
+
+// Handle 401 errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      localStorage.removeItem('apiKey');
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const sessionApi = {
   list: () => api.get('/sessions'),
