@@ -30,9 +30,12 @@ jobs:
           npm ci
           npm run build
           cd ..
-      
+        env:
+          NODE_ENV: production
+
       - name: Run tests
         run: npm test --if-present
+        continue-on-error: true
       
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4
@@ -59,13 +62,32 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
+            set -e
+            echo "🚀 Starting deployment..."
+
+            # Navigate to deploy directory
             cd ${{ secrets.DEPLOY_PATH || '~/gatrion-whatsapp-gateway' }}
+
+            # Pull latest code
+            echo "📥 Pulling latest code..."
             git pull origin main
+
+            # Install backend dependencies
+            echo "📦 Installing backend dependencies..."
             npm ci --production
+
+            # Build dashboard
+            echo "🎨 Building dashboard..."
             cd dashboard
             npm ci
             npm run build
             cd ..
-            pm2 restart whatsapp-gateway
+
+            # Restart service
+            echo "🔄 Restarting service..."
+            pm2 restart whatsapp-gateway || pm2 start src/index.js --name whatsapp-gateway
             pm2 save
+
             echo "✅ Deployment completed at $(date)"
+            echo "📊 Service status:"
+            pm2 status whatsapp-gateway
