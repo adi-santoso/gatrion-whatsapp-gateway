@@ -283,22 +283,28 @@ class SessionManager {
                                message.message?.documentMessage ? 'document' :
                                'unknown';
 
+            // Strip 'session-' prefix if present (sessionId format: "session-xxx")
+            const cleanSessionId = sessionId.startsWith('session-')
+              ? sessionId.substring(8)
+              : sessionId;
+
             const emitData = {
               from: phoneNumber,
               message: messageText,
-              sessionId: sessionId,
+              sessionId: sessionId,  // Keep original format in data
               timestamp: Date.now(),
               messageId: message.key.id,
               type: messageType
             };
 
-            console.log(`[Gateway] Emitting whatsapp:message to session-${sessionId}:`, {
+            console.log(`[Gateway] Emitting whatsapp:message to session-${cleanSessionId}:`, {
               from: phoneNumber,
               messagePreview: messageText.substring(0, 50),
               type: messageType
             });
 
-            this.wsServer.emitToSession(sessionId, 'whatsapp:message', emitData);
+            // emitToSession will add 'session-' prefix, so pass clean ID
+            this.wsServer.emitToSession(cleanSessionId, 'whatsapp:message', emitData);
           } catch (socketErr) {
             console.error(`[Gateway] Socket.IO emit error for ${sessionId}:`, socketErr);
           }
