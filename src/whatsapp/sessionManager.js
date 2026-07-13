@@ -264,8 +264,22 @@ class SessionManager {
         // Emit to Socket.IO for CodeBridge integration
         if (this.wsServer) {
           try {
-            // Extract phone number (remove @s.whatsapp.net suffix)
-            const phoneNumber = message.key.remoteJid.replace('@s.whatsapp.net', '');
+            // Extract phone number - handle @lid format properly
+            let phoneNumber = message.key.remoteJid;
+
+            // Check for Linked Device format (@lid)
+            if (/@lid/.test(phoneNumber)) {
+              // Use remoteJidAlt which contains proper @s.whatsapp.net format
+              if (message.key.remoteJidAlt) {
+                phoneNumber = message.key.remoteJidAlt;
+                console.log(`[Gateway] Converted @lid format: ${message.key.remoteJid} -> ${phoneNumber}`);
+              } else {
+                console.warn(`[Gateway] @lid detected but remoteJidAlt is missing:`, message.key.remoteJid);
+              }
+            }
+
+            // Remove @s.whatsapp.net suffix
+            phoneNumber = phoneNumber.replace('@s.whatsapp.net', '');
 
             // Extract message text from Baileys message object
             const messageText = message.message?.conversation ||

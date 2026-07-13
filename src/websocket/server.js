@@ -102,6 +102,7 @@ class WebSocketServer {
         try {
           console.log('[Gateway] Received send:message request:', {
             sessionId: data.sessionId,
+            to: data.to,
             messagePreview: data.message?.substring(0, 50),
             timestamp: data.timestamp
           });
@@ -127,15 +128,33 @@ class WebSocketServer {
             return;
           }
 
-          // Send message to WhatsApp user
-          await this.sessionManager.sendTextMessage(sessionId, to, message);
+          // Normalize phone number format
+          // Input might be: "250946466648070@lid" or "250946466648070" or "62250946466648070"
+          // Output should be: "62250946466648070@s.whatsapp.net"
+          let phoneNumber = to;
 
-          console.log(`[Gateway] Message sent to ${to} via ${sessionId}`);
+          // Remove @lid or @s.whatsapp.net suffix if present
+          phoneNumber = phoneNumber.replace(/@lid$/, '').replace(/@s\.whatsapp\.net$/, '');
+
+          // Add country code 62 if not present (assuming Indonesia)
+          if (!phoneNumber.startsWith('62')) {
+            phoneNumber = '62' + phoneNumber;
+          }
+
+          // Add WhatsApp suffix
+          const whatsappNumber = phoneNumber + '@s.whatsapp.net';
+
+          console.log(`[Gateway] Normalized phone number: ${to} -> ${whatsappNumber}`);
+
+          // Send message to WhatsApp user
+          await this.sessionManager.sendTextMessage(sessionId, whatsappNumber, message);
+
+          console.log(`[Gateway] Message sent to ${whatsappNumber} via ${sessionId}`);
 
           // Emit confirmation
           socket.emit('message:sent', {
             sessionId,
-            to,
+            to: whatsappNumber,
             success: true,
             timestamp: Date.now()
           });
