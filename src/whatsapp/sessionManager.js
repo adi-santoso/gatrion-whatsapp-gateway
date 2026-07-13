@@ -243,22 +243,65 @@ class SessionManager {
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
-      
+
       const session = this.sessions.get(sessionId);
       if (!session) return;
-      
+
       for (const message of messages) {
         if (message.key.fromMe) continue;
-        
+
         if (this.isDuplicate(sessionId, message.key.id)) {
           console.log(`Duplicate message ${message.key.id} for ${sessionId}, skipping webhook`);
           continue;
         }
-        
+
         try {
           await webhookService.sendMessageReceived(session, message);
         } catch (err) {
           console.error(`Webhook error for ${sessionId}:`, err);
+        }
+
+        // Emit to Socket.IO for CodeBridge integration
+        if (this.wsServer) {
+          try {
+            // Extract phone number (remove @s.whatsapp.net suffix)
+            const phoneNumber = message.key.remoteJid.replace('@s.whatsapp.net', '');
+
+            // Extract message text from Baileys message object
+            const messageText = message.message?.conversation ||
+                               message.message?.extendedTextMessage?.text ||
+                               message.message?.imageMessage?.caption ||
+                               message.message?.videoMessage?.caption ||
+                               '';
+
+            // Get message type
+            const messageType = message.message?.conversation ? 'text' :
+                               message.message?.extendedTextMessage ? 'text' :
+                               message.message?.imageMessage ? 'image' :
+                               message.message?.videoMessage ? 'video' :
+                               message.message?.audioMessage ? 'audio' :
+                               message.message?.documentMessage ? 'document' :
+                               'unknown';
+
+            const emitData = {
+              from: phoneNumber,
+              message: messageText,
+              sessionId: sessionId,
+              timestamp: Date.now(),
+              messageId: message.key.id,
+              type: messageType
+            };
+
+            console.log(`[Gateway] Emitting whatsapp:message to session-${sessionId}:`, {
+              from: phoneNumber,
+              messagePreview: messageText.substring(0, 50),
+              type: messageType
+            });
+
+            this.wsServer.emitToSession(sessionId, 'whatsapp:message', emitData);
+          } catch (socketErr) {
+            console.error(`[Gateway] Socket.IO emit error for ${sessionId}:`, socketErr);
+          }
         }
       }
     });

@@ -105,7 +105,8 @@ async function start() {
     const wsServer = new WebSocketServer(httpServer);
     wsServer.initialize();
     sessionManager.setWebSocketServer(wsServer);
-    console.log('WebSocket server initialized');
+    wsServer.setSessionManager(sessionManager);
+    console.log('WebSocket server initialized with SessionManager');
     
     // Start queue worker only if Redis is available
     if (config.redis.enabled) {

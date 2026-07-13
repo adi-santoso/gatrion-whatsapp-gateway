@@ -11,6 +11,12 @@ class WebSocketServer {
       pingTimeout: 60000,
       pingInterval: 25000
     });
+    this.sessionManager = null;
+  }
+
+  setSessionManager(sessionManager) {
+    this.sessionManager = sessionManager;
+    console.log('[WebSocket] SessionManager injected for message handling');
   }
   
   initialize() {
@@ -89,6 +95,59 @@ class WebSocketServer {
       
       socket.on('error', (err) => {
         console.error(`[WebSocket] Socket error for ${socket.id}:`, err);
+      });
+
+      // Listen for send message request from any client
+      socket.on('send:message', async (data) => {
+        try {
+          console.log('[Gateway] Received send:message request:', {
+            sessionId: data.sessionId,
+            messagePreview: data.message?.substring(0, 50),
+            timestamp: data.timestamp
+          });
+
+          const { sessionId, message, to } = data;
+
+          if (!sessionId || !message || !to) {
+            console.error('[Gateway] Invalid send:message data:', data);
+            socket.emit('message:error', {
+              sessionId,
+              error: 'Missing required fields: sessionId, message, or to'
+            });
+            return;
+          }
+
+          // Check if SessionManager is available
+          if (!this.sessionManager) {
+            console.error('[Gateway] SessionManager not available');
+            socket.emit('message:error', {
+              sessionId,
+              error: 'SessionManager not initialized'
+            });
+            return;
+          }
+
+          // Send message to WhatsApp user
+          await this.sessionManager.sendTextMessage(sessionId, to, message);
+
+          console.log(`[Gateway] Message sent to ${to} via ${sessionId}`);
+
+          // Emit confirmation
+          socket.emit('message:sent', {
+            sessionId,
+            to,
+            success: true,
+            timestamp: Date.now()
+          });
+
+        } catch (error) {
+          console.error('[Gateway] Failed to send message:', error);
+          socket.emit('message:error', {
+            sessionId: data?.sessionId,
+            error: error.message,
+            timestamp: Date.now()
+          });
+        }
       });
     });
   }

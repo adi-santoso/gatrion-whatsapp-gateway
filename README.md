@@ -985,6 +985,60 @@ Response: 200
 
 ---
 
+## 🔌 Socket.IO Integration
+
+Gateway supports real-time Socket.IO integration for external applications.
+
+### Quick Start
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('https://chat.gatrion.my.id', {
+  auth: {
+    key: 'your-api-key',
+    clientType: 'my-app'
+  }
+});
+
+// Join session room
+socket.emit('join-session', 'session-xxx');
+
+// Listen for WhatsApp messages
+socket.on('whatsapp:message', (data) => {
+  console.log('Message from:', data.from);
+  console.log('Text:', data.message);
+});
+
+// Send WhatsApp message
+socket.emit('send:message', {
+  sessionId: 'session-xxx',
+  to: '628123456789',
+  message: 'Hello!'
+});
+```
+
+### Event Protocol
+
+**Incoming (Gateway → Client):**
+- `whatsapp:message` - New WhatsApp message received
+- `qr_ready` - QR code generated for session
+- `session_connected` - Session successfully connected
+- `session_disconnected` - Session disconnected
+
+**Outgoing (Client → Gateway):**
+- `send:message` - Send WhatsApp message
+- `join-session` - Join session room to receive messages
+- `leave-session` - Leave session room
+
+**Confirmations:**
+- `message:sent` - Message successfully delivered
+- `message:error` - Error sending message
+
+See [Socket.IO Integration Guide](docs/SOCKETIO_INTEGRATION.md) for complete documentation.
+
+---
+
 ## 🌐 WebSocket Events
 
 Connect to WebSocket server at: `ws://localhost:3333`
@@ -1412,14 +1466,32 @@ ISC License
 
 ---
 
+## 📚 Documentation
+
+Complete documentation available in `docs/` folder:
+
+- **[Socket.IO Integration Guide](docs/SOCKETIO_INTEGRATION.md)** - Real-time Socket.IO integration for external applications
+- **[API Reference](docs/API_REFERENCE.md)** - Complete HTTP REST API and Socket.IO event reference
+- **[Architecture Documentation](docs/ARCHITECTURE.md)** - System design, data flow, and scalability patterns
+- **Phase Blueprints** - Implementation guides in `docs/phase-*` folders
+
+### Quick Links
+
+- Integration guides → `docs/SOCKETIO_INTEGRATION.md`
+- API endpoints → `docs/API_REFERENCE.md`
+- System architecture → `docs/ARCHITECTURE.md`
+- Phase implementations → `docs/phase-*/`
+
+---
+
 ## 📞 Support
 
 For issues and questions:
 - GitHub Issues: [Create an issue](https://github.com/adi-santoso/gatrion-whatsapp-gateway/issues)
-- Documentation: See `docs/` folder for phase blueprints
+- Documentation: See `docs/` folder for complete documentation
 
 ---
 
 **Built with ❤️ for production WhatsApp integrations**
 
-Total: ~4,385 lines of production code | 48+ API endpoints | 8 media types | Multi-session architecture
+Total: ~4,385 lines of production code | 48+ API endpoints | 8 media types | Multi-session architecture | Real-time Socket.IO integration
