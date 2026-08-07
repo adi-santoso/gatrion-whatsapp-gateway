@@ -510,12 +510,9 @@ class SessionManager {
         const sessionPath = path.join('./sessions', dbSession.id);
         const credsFile = path.join(sessionPath, 'creds.json');
 
-        // Skip sessions with missing auth state (prevents 405 reconnect loop)
-        if (!fs.existsSync(credsFile)) {
-          console.warn(`Session ${dbSession.id} has no creds.json (auth state missing), deleting from DB`);
-          loggerService.error(dbSession.id, 'Auth state missing during restore, deleting session');
-          this.db.deleteSession(dbSession.id);
-          continue;
+        const hasCreds = fs.existsSync(credsFile);
+        if (!hasCreds) {
+          console.log(`Session ${dbSession.id} has no creds.json (QR not scanned yet), will generate fresh QR`);
         }
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
@@ -534,7 +531,7 @@ class SessionManager {
           id: dbSession.id,
           name: dbSession.name,
           phone: dbSession.phone,
-          status: dbSession.status || 'disconnected',
+          status: 'connecting',
           sock: sock,
           qr: null,
           createdAt: new Date(dbSession.created_at),
@@ -549,7 +546,7 @@ class SessionManager {
         this.sessions.set(dbSession.id, session);
         this.setupEventHandlers(dbSession.id, sock, saveCreds);
         
-        console.log(`Restored session: ${dbSession.id}`);
+        console.log(`Restored session: ${dbSession.id}${hasCreds ? '' : ' (no auth — fresh QR will be generated)'}`);
         
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (err) {
