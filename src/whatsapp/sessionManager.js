@@ -2,6 +2,7 @@ import makeWASocket, { useMultiFileAuthState, DisconnectReason } from '@whiskeys
 import QRCode from 'qrcode';
 import pino from 'pino';
 import path from 'path';
+import fs from 'fs';
 import SessionDB from '../storage/sessionDb.js';
 import { webhookService } from '../services/webhookService.js';
 import { analyticsService } from '../services/analyticsService.js';
@@ -208,7 +209,9 @@ class SessionManager {
 
         // Status code 515 = restartRequired (connection issue, not real disconnect)
         // Status code 428 = connectionClosed (temporary network issue)
-        const isTemporaryIssue = statusCode === 515 || statusCode === 428;
+        // Status code 408 = timedOut (temporary network issue)
+        // Status code 440 = connectionReplaced (another session took over)
+        const isTemporaryIssue = statusCode === 515 || statusCode === 428 || statusCode === 408 || statusCode === 440;
 
         if (shouldReconnect && session.reconnectAttempts < 5) {
           // For temporary issues, use shorter delay
@@ -221,17 +224,21 @@ class SessionManager {
           setTimeout(() => this.reconnectSession(sessionId), delay);
         } else {
           if (!shouldReconnect) {
-            // User logged out from WhatsApp (removed device)
-            console.log(`Session ${sessionId} logged out, deleting session...`);
-            loggerService.info(sessionId, 'Session logged out, deleting');
-            this.deleteSession(sessionId).catch(err => {
-              console.error(`Failed to delete session ${sessionId}:`, err.message);
+            // 401 = User logged out from WhatsApp (removed device or session expired)
+            // Reset auth state and reconnect to generate fresh QR (keep session ID)
+            console.log(`Session ${sessionId} logged out (401), resetting auth state for fresh QR...`);
+            loggerService.info(sessionId, 'Session logged out, resetting auth state (session ID preserved)');
+            session.reconnectAttempts = 0;
+            this.resetAuthState(sessionId).then(() => {
+              this.reconnectSession(sessionId);
+            }).catch(err => {
+              console.error(`Error resetting ${sessionId}:`, err.message);
             });
           } else {
-            // Max reconnect attempts reached - reset for next try
-            console.log(`Session ${sessionId} max retries reached, resetting counter for next connection attempt`);
-            session.reconnectAttempts = 0;
-            loggerService.error(sessionId, 'Max reconnect attempts reached, waiting for next QR scan');
+            // Max reconnect attempts reached - keep disconnected, do NOT reset counter
+            // (resetting causes infinite reconnect loop)
+            console.log(`Session ${sessionId} max retries reached, staying disconnected`);
+            loggerService.error(sessionId, 'Max reconnect attempts reached, staying disconnected');
           }
         }
       }
@@ -399,7 +406,37 @@ class SessionManager {
       console.error(`Error deleting from DB ${sessionId}:`, err.message);
     }
     
+    // Delete session folder entirely
+    const sessionPath = path.join('./sessions', sessionId);
+    try {
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+      }
+    } catch (err) {
+      console.error(`Error deleting folder ${sessionId}:`, err.message);
+    }
+    
     console.log(`Session ${sessionId} deleted`);
+  }
+
+  async resetAuthState(sessionId) {
+    // Delete contents of session folder but keep the folder itself
+    // This preserves the session ID while forcing a fresh QR login
+    const sessionPath = path.join('./sessions', sessionId);
+    try {
+      if (fs.existsSync(sessionPath)) {
+        const entries = fs.readdirSync(sessionPath);
+        for (const entry of entries) {
+          const entryPath = path.join(sessionPath, entry);
+          fs.rmSync(entryPath, { recursive: true, force: true });
+        }
+      } else {
+        fs.mkdirSync(sessionPath, { recursive: true });
+      }
+      console.log(`Auth state reset for ${sessionId} (session ID preserved)`);
+    } catch (err) {
+      console.error(`Error resetting auth state for ${sessionId}:`, err.message);
+    }
   }
 
   async disconnectSession(sessionId) {
@@ -471,6 +508,16 @@ class SessionManager {
       
       try {
         const sessionPath = path.join('./sessions', dbSession.id);
+        const credsFile = path.join(sessionPath, 'creds.json');
+
+        // Skip sessions with missing auth state (prevents 405 reconnect loop)
+        if (!fs.existsSync(credsFile)) {
+          console.warn(`Session ${dbSession.id} has no creds.json (auth state missing), deleting from DB`);
+          loggerService.error(dbSession.id, 'Auth state missing during restore, deleting session');
+          this.db.deleteSession(dbSession.id);
+          continue;
+        }
+
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
         const sock = makeWASocket({
