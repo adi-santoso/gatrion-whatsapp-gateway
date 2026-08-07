@@ -55,6 +55,15 @@ class WebSocketServer {
         socket.join(roomName);
         console.log(`[WebSocket] Client auto-joined room: ${roomName}`);
         console.log(`[WebSocket] Total clients in room: ${this.io.sockets.adapter.rooms.get(roomName)?.size || 0}`);
+
+        // Send current QR/status immediately if already available
+        if (this.sessionManager) {
+          const session = this.sessionManager.sessions.get(`session-${sessionId}`) ||
+                          this.sessionManager.sessions.get(sessionId);
+          if (session) {
+            this.sendCurrentState(socket, session, sessionId);
+          }
+        }
       } else {
         console.log('[WebSocket] Client connected without sessionId in query');
       }
@@ -75,6 +84,19 @@ class WebSocketServer {
         
         // Confirm join
         socket.emit('joined-session', { sessionId: `session-${sid}`, room: roomName });
+
+        // Send current QR/status immediately if already available
+        if (this.sessionManager) {
+          const session = this.sessionManager.sessions.get(`session-${sid}`);
+          if (!session) {
+            const altSession = this.sessionManager.sessions.get(sid);
+            if (altSession) {
+              this.sendCurrentState(socket, altSession, sid);
+            }
+          } else {
+            this.sendCurrentState(socket, session, sid);
+          }
+        }
       });
       
       // Listen for leave-session event
@@ -171,6 +193,18 @@ class WebSocketServer {
     });
   }
   
+  sendCurrentState(socket, session, sid) {
+    const sessionId = session.id || `session-${sid}`;
+    console.log(`[WebSocket] Sending current state for ${sessionId}: status=${session.status}, hasQR=${!!session.qr}`);
+    if (session.status === 'qr_ready' && session.qr) {
+      socket.emit('qr_ready', { sessionId, qrCode: session.qr });
+    } else if (session.status === 'connected') {
+      socket.emit('session_connected', { sessionId, phone: session.phone });
+    } else if (session.status === 'disconnected' || session.status === 'failed') {
+      socket.emit('session_disconnected', { sessionId });
+    }
+  }
+
   emitToSession(sessionId, event, data) {
     // Remove 'session-' prefix if already present (same as in initialize)
     if (sessionId.startsWith('session-')) {
