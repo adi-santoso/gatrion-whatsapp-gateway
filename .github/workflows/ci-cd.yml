@@ -1,93 +1,80 @@
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
+name: Production VPS CI/CD
 jobs:
   test:
     name: Test & Build
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build dashboard
-        run: |
-          cd dashboard
-          npm ci
-          npm run build
-          cd ..
-        env:
-          NODE_ENV: production
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.20.2
+        cache: npm
+    - name: Install dependencies
+      run: npm ci
+    - name: Build dashboard
+      run: 'cd dashboard
 
-      - name: Run tests
-        run: npm test --if-present
-        continue-on-error: true
-      
-      - name: Archive production artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dashboard-build
-          path: dashboard/dist/
-          retention-days: 7
+        npm ci
 
+        npm run build
+
+        cd ..
+
+        '
+      env:
+        NODE_ENV: production
+    - name: Run tests
+      run: npm test --if-present
+      continue-on-error: true
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dashboard-build
+        path: dashboard/dist/
+        retention-days: 7
   deploy:
-    name: Deploy to Production
+    name: Deploy pinned commit to production VPS
     needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            echo "🚀 Starting deployment..."
+    - name: Deploy and verify health
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+      run: 'set -euo pipefail
 
-            # Navigate to deploy directory
-            cd ${{ secrets.DEPLOY_PATH || '~/gatrion-whatsapp-gateway' }}
+        task_ssh_dir=$(mktemp -d)
 
-            # Pull latest code
-            echo "📥 Pulling latest code..."
-            git pull origin main
+        trap ''rm -rf "$task_ssh_dir"'' EXIT
 
-            # Install backend dependencies
-            echo "📦 Installing backend dependencies..."
-            npm ci --production
+        printf "%s\n" "$DEPLOY_SSH_KEY" > "$task_ssh_dir/key"
 
-            # Build dashboard
-            echo "🎨 Building dashboard..."
-            cd dashboard
-            npm ci
-            npm run build
-            cd ..
+        printf "%s\n" "$DEPLOY_HOST_KEY" > "$task_ssh_dir/known_hosts"
 
-            # Restart service
-            echo "🔄 Restarting service..."
-            pm2 restart whatsapp-gateway || pm2 start src/index.js --name whatsapp-gateway
-            pm2 save
+        chmod 600 "$task_ssh_dir/key" "$task_ssh_dir/known_hosts"
 
-            echo "✅ Deployment completed at $(date)"
-            echo "📊 Service status:"
-            pm2 status whatsapp-gateway
+        ssh -i "$task_ssh_dir/key" -p "$DEPLOY_PORT" -o BatchMode=yes -o ConnectTimeout=30 -o HostKeyAlgorithms=ssh-ed25519
+        -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$task_ssh_dir/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" "deploy
+        $GITHUB_SHA"
+
+        '
+'on':
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: production-gatrion-whatsapp-gateway-${{ github.ref }}
+  cancel-in-progress: false
